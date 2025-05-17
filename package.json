@@ -1,0 +1,19 @@
+{
+  "name": "kirodotto",
+  "version": "1.0.0",
+  "description": "A physics-lite, color-matching, touch-and-drag puzzle action game",
+  "main": "js/main.js",
+  "scripts": {
+    "start": "http-server -o",
+    "dev": "http-server -o",
+    "setup": "node start.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "phaser": "^3.55.2"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+} 

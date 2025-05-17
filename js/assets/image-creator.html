@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Game Image Creator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .image-container {
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            display: inline-block;
+        }
+
+        canvas {
+            border: 1px dashed #aaa;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Game Image Creator</h1>
+
+    <div class="image-container">
+        <h2>Particle (32x32)</h2>
+        <canvas id="particleCanvas" width="32" height="32"></canvas><br>
+        <button id="downloadParticle">Download particle.png</button>
+    </div>
+
+    <div class="image-container">
+        <h2>Circle (64x64)</h2>
+        <canvas id="circleCanvas" width="64" height="64"></canvas><br>
+        <button id="downloadCircle">Download circle.png</button>
+    </div>
+
+    <script>
+        // Create particle
+        const particleCanvas = document.getElementById('particleCanvas');
+        const pctx = particleCanvas.getContext('2d');
+
+        // Clear canvas
+        pctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+
+        // Draw white circle
+        pctx.fillStyle = '#ffffff';
+        pctx.beginPath();
+        pctx.arc(16, 16, 8, 0, Math.PI * 2);
+        pctx.fill();
+
+        // Create circle
+        const circleCanvas = document.getElementById('circleCanvas');
+        const cctx = circleCanvas.getContext('2d');
+
+        // Clear canvas
+        cctx.clearRect(0, 0, circleCanvas.width, circleCanvas.height);
+
+        // Draw white circle
+        cctx.fillStyle = '#ffffff';
+        cctx.beginPath();
+        cctx.arc(32, 32, 28, 0, Math.PI * 2);
+        cctx.fill();
+
+        // Download handlers
+        document.getElementById('downloadParticle').addEventListener('click', function () {
+            const dataURL = particleCanvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'particle.png';
+            link.href = dataURL;
+            link.click();
+        });
+
+        document.getElementById('downloadCircle').addEventListener('click', function () {
+            const dataURL = circleCanvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'circle.png';
+            link.href = dataURL;
+            link.click();
+        });
+    </script>
+</body>
+
+</html>

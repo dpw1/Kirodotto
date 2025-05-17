@@ -1,0 +1,6 @@
+@echo off
+echo Installing dependencies...
+call npm install
+echo Starting Kirodotto Game...
+call npm start
+echo If the browser doesn't open automatically, navigate to http://localhost:8080 

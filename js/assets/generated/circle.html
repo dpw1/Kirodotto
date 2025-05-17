@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Generate Circle</title>
+</head>
+
+<body>
+    <canvas id="canvas" width="64" height="64"></canvas>
+
+    <script>
+        // Get canvas and context
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Draw a white circle
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 30;
+
+        // Draw circle
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Save as an image
+        console.log('Right-click the circle and select "Save image as..." to download the circle image');
+    </script>
+</body>
+
+</html>

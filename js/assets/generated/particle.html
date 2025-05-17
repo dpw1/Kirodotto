@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Generate Particle</title>
+</head>
+
+<body>
+    <canvas id="canvas" width="32" height="32"></canvas>
+
+    <script>
+        // Get canvas and context
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Draw a white circle with soft edges (particle)
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 12;
+
+        // Create radial gradient
+        const gradient = ctx.createRadialGradient(
+            centerX, centerY, 0,
+            centerX, centerY, radius
+        );
+
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.8)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+        // Draw circle
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Save as an image
+        console.log('Right-click the circle and select "Save image as..." to download the particle image');
+    </script>
+</body>
+
+</html>
