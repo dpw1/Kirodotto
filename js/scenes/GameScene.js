@@ -1,6 +1,7 @@
 import { CONFIG } from '../config.js';
 import { UIManager } from '../utils/uiManager.js';
 import { DragHandler } from '../utils/dragHandler.js';
+import { Logger, log } from '../utils/logger.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -18,9 +19,13 @@ export class GameScene extends Phaser.Scene {
     this.ballCount = Math.max(4, CONFIG.initialBallCount + extraBalls);
     
     this.difficultyMultiplier = Math.min(CONFIG.maxDifficulty, 1 + ((this.level - 1) * 0.1));
+    
+    Logger.info(`Game initialized - Level: ${this.level}, Balls: ${this.ballCount}, Difficulty: ${this.difficultyMultiplier}`);
   }
   
   create() {
+    Logger.info('Creating game scene');
+    
     // Create the UI manager
     this.uiManager = new UIManager(this);
     this.uiManager.create();
@@ -51,6 +56,8 @@ export class GameScene extends Phaser.Scene {
     // Initialize pause state
     this.isPaused = false;
     this.pauseMenu = null;
+    
+    Logger.info('Game scene created successfully');
   }
   
   createGoalBars() {
@@ -145,9 +152,9 @@ export class GameScene extends Phaser.Scene {
       // Store the position
       existingPositions.push({ x, y });
       
-      // Random size
-      const minSize = CONFIG.minBallSize;
-      const maxSize = CONFIG.maxBallSize;
+      // Random size from ballSizeRange
+      const minSize = CONFIG.ballSizeRange[0];
+      const maxSize = CONFIG.ballSizeRange[1];
       const size = Phaser.Math.Between(minSize, maxSize);
       
       // Random velocity
@@ -196,9 +203,9 @@ export class GameScene extends Phaser.Scene {
       // Store the position
       existingPositions.push({ x, y });
       
-      // Random size
-      const minSize = CONFIG.minBallSize;
-      const maxSize = CONFIG.maxBallSize;
+      // Random size from ballSizeRange
+      const minSize = CONFIG.ballSizeRange[0];
+      const maxSize = CONFIG.ballSizeRange[1];
       const size = Phaser.Math.Between(minSize, maxSize);
       
       // Random color
@@ -237,6 +244,8 @@ export class GameScene extends Phaser.Scene {
     
     // Half the size for radius
     const radius = size / 2;
+    
+    Logger.debug(`Creating ball: x=${x.toFixed(1)}, y=${y.toFixed(1)}, size=${size}, color=${CONFIG.colorNames[colorIndex]}, isDead=${isDead}`);
     
     // Create the ball as a circle with radius
     const color = isDead 
@@ -290,17 +299,20 @@ export class GameScene extends Phaser.Scene {
     
     // Add methods
     ball.stopPulsating = function() {
+      Logger.debug(`Ball stopped pulsating: x=${this.x.toFixed(1)}, y=${this.y.toFixed(1)}`);
       this.scene.tweens.killTweensOf(this);
     };
     
-    ball.resumePulsating = function(originalScale) {
+    ball.resumePulsating = function(startFrom) {
       if (!this.isDead) {
-        // Use current size as the base for pulsation
-        this.scene.addPulsatingAnimation(this);
+        Logger.debug(`Ball resuming pulsation: x=${this.x.toFixed(1)}, y=${this.y.toFixed(1)}, startFrom=${startFrom || 'default'}`);
+        // Pass the startFrom parameter to control where pulsation begins
+        this.scene.addPulsatingAnimation(this, null, startFrom);
       }
     };
     
     ball.setDead = function() {
+      Logger.debug(`Ball set to dead: x=${this.x.toFixed(1)}, y=${this.y.toFixed(1)}`);
       this.isDead = true;
       this.fillColor = 0x777777;
       this.velocity = { x: 0, y: 0 }; // Make it static
@@ -308,7 +320,7 @@ export class GameScene extends Phaser.Scene {
       
       if (this.scoreText) {
         try {
-          this.scoreText.destroy();
+        this.scoreText.destroy();
         } catch (error) {
           console.warn('Error destroying score text:', error);
         }
@@ -326,7 +338,7 @@ export class GameScene extends Phaser.Scene {
     return ball;
   }
   
-  addPulsatingAnimation(ball, forceScale) {
+  addPulsatingAnimation(ball, forceScale, startFrom) {
     if (ball.isDead) return;
     
     // Get pulsation speed from config
@@ -354,29 +366,98 @@ export class GameScene extends Phaser.Scene {
     const minScale = 0.85;
     const maxScale = 1.15;
     
-    // Create the pulsation tween
-    this.tweens.add({
-      targets: ball,
-      scale: { from: minScale, to: maxScale },
-      duration: pulseSpeed / 2,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-      onUpdate: () => {
-        // Make sure the ball maintains its circular shape
-        if (ball.width !== ball.height) {
-          // Get the current width and ensure height matches
-          ball.height = ball.width;
-        }
-        
-        // Update the score text to reflect current size if in debug mode
-        if (ball.scoreText && CONFIG.debugCode) {
-          // Calculate the current actual radius of the ball based on its display size
-          const currentRadius = Math.floor(ball.displayWidth / 2);
-          ball.scoreText.setText(currentRadius.toString());
-        }
-      }
-    });
+    // Default starting point and direction
+    let currentScale = minScale;
+    let goingUp = true;
+    
+    // If startFrom is provided, use it as the starting point in the pulsation
+    if (startFrom !== undefined && startFrom !== null) {
+      // Make sure the ball's originalRadius is updated to the startFrom value
+      ball.originalRadius = startFrom;
+      
+      // Recalculate baseRadius and baseSize with updated originalRadius
+      const baseRadius = ball.originalRadius;
+      const baseSize = baseRadius * 2;
+      
+      // Set the display size to match the new radius
+      ball.setDisplaySize(baseSize, baseSize);
+      
+      // Calculate the scale relative to baseRadius
+      currentScale = 1.0; // Start at neutral scale since we've already set the size
+      
+      // Determine direction based on where we are in the cycle
+      // If closer to maxScale, we're going down next
+      // If closer to minScale, we're going up next
+      const midPoint = (minScale + maxScale) / 2;
+      goingUp = true; // Always start going up from neutral position
+      
+      Logger.debug(`Ball pulsation starting from exact radius: ${startFrom.toFixed(1)}, baseSize: ${baseSize.toFixed(1)}`);
+    } else {
+      Logger.debug(`Ball pulsation starting with default values, baseRadius: ${baseRadius.toFixed(1)}`);
+    }
+    
+    // Set the initial scale
+    ball.setScale(currentScale);
+    
+    // Create a function for the repeating pulsation
+    const createRepeatingPulsation = () => {
+      // Calculate the target scale
+      const targetScale = goingUp ? maxScale : minScale;
+      
+      // Calculate duration based on the distance to travel for consistent speed
+      const scaleDifference = Math.abs(targetScale - currentScale);
+      const totalScaleRange = maxScale - minScale;
+      const adjustedDuration = (scaleDifference / totalScaleRange) * pulseSpeed;
+      
+      this.tweens.add({
+        targets: ball,
+        scale: targetScale,
+        duration: adjustedDuration,
+        ease: 'Sine.easeInOut',
+        onComplete: () => {
+          // Update current scale
+          currentScale = targetScale;
+          
+          // Flip direction and continue pulsation
+          goingUp = !goingUp;
+          
+          // Calculate the new target scale
+          const newTargetScale = goingUp ? maxScale : minScale;
+          
+          // Calculate new duration based on full range for consistent speed
+          const newDuration = pulseSpeed;
+          
+          this.tweens.add({
+            targets: ball,
+            scale: newTargetScale,
+            duration: newDuration,
+            ease: 'Sine.easeInOut',
+            onComplete: createRepeatingPulsation,
+            onUpdate: () => this.updateBallDuringPulsation(ball)
+          });
+        },
+        onUpdate: () => this.updateBallDuringPulsation(ball)
+      });
+    };
+    
+    // Start the repeating pulsation
+    createRepeatingPulsation();
+  }
+  
+  // Helper method to update ball during pulsation
+  updateBallDuringPulsation(ball) {
+    // Make sure the ball maintains its circular shape
+    if (ball.width !== ball.height) {
+      // Get the current width and ensure height matches
+      ball.height = ball.width;
+    }
+    
+    // Update the score text to reflect current size if in debug mode
+    if (ball.scoreText && CONFIG.debugCode) {
+      // Calculate the current actual radius of the ball based on its display size
+      const currentRadius = Math.floor(ball.displayWidth / 2);
+      ball.scoreText.setText(currentRadius.toString());
+    }
   }
   
   update(time, delta) {
@@ -417,10 +498,12 @@ export class GameScene extends Phaser.Scene {
   }
   
   removeBall(ball) {
+    Logger.debug(`Removing ball: x=${ball.x.toFixed(1)}, y=${ball.y.toFixed(1)}, color=${CONFIG.colorNames[ball.colorIndex]}`);
+    
     // Remove the score text if it exists
     if (ball.scoreText) {
       try {
-        ball.scoreText.destroy();
+      ball.scoreText.destroy();
       } catch (error) {
         console.warn('Error destroying score text:', error);
       }
@@ -485,6 +568,8 @@ export class GameScene extends Phaser.Scene {
   gameOver() {
     this.gameActive = false;
     
+    Logger.info(`Game over - Final score: ${this.score}`);
+    
     // Show game over UI
     this.uiManager.showGameOver(this.score);
     
@@ -492,6 +577,7 @@ export class GameScene extends Phaser.Scene {
     const bestScore = localStorage.getItem('bestScore') || 0;
     if (this.score > bestScore) {
       localStorage.setItem('bestScore', this.score);
+      Logger.info(`New best score: ${this.score}`);
     }
   }
   
@@ -532,6 +618,8 @@ export class GameScene extends Phaser.Scene {
   levelComplete() {
     this.gameActive = false;
     
+    Logger.info(`Level ${this.level} completed - Score: ${this.score}`);
+    
     // Show level complete UI
     this.uiManager.showLevelComplete(this.level, this.score, () => {
       this.nextLevel();
@@ -546,6 +634,8 @@ export class GameScene extends Phaser.Scene {
     this.ballCount = Math.max(4, CONFIG.initialBallCount + extraBalls);
     
     this.difficultyMultiplier = Math.min(CONFIG.maxDifficulty, 1 + ((this.level - 1) * 0.1));
+    
+    Logger.info(`Starting level ${this.level} - Balls: ${this.ballCount}, Difficulty: ${this.difficultyMultiplier.toFixed(2)}`);
     
     // Clean up old balls
     this.balls.clear(true, true);
@@ -578,6 +668,8 @@ export class GameScene extends Phaser.Scene {
     this.isPaused = true;
     this.gameActive = false;
     
+    Logger.info('Game paused');
+    
     // Stop pulsation animation on all balls when paused
     const balls = this.balls.getChildren();
     for (let i = 0; i < balls.length; i++) {
@@ -588,6 +680,8 @@ export class GameScene extends Phaser.Scene {
   resumeGame() {
     this.isPaused = false;
     this.gameActive = true;
+    
+    Logger.info('Game resumed');
     
     // Resume pulsation animation on all balls when game is resumed
     const balls = this.balls.getChildren();

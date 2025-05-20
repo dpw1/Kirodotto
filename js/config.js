@@ -1,7 +1,8 @@
 export const CONFIG = {
-  version: "1.02",
-  minBallSize: 15,
-  maxBallSize: 60,
+  version: "1.03",
+  minBallSize: 15, // Absolute minimum size for any ball
+  maxBallSize: 200, // Absolute maximum size for any ball
+  ballSizeRange: [20, 40], // Range for initial ball size randomization [min, max]
   initialBallCount: 10,
   ballsPerLevel: 2,
   lives: 3,

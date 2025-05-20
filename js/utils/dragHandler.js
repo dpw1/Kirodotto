@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { Logger, log } from './logger.js';
 
 export class DragHandler {
   constructor(scene, updateCallback) {
@@ -9,8 +10,13 @@ export class DragHandler {
     this.originalScale = 1;
     this.updateCallback = updateCallback;
     this.mergedThisFrame = false; // Flag to prevent multiple merges in one frame
+    this.mergeBallsOccurred = false; // Flag to indicate if a ball merge happened during drag
+    this.clickCapturedRadius = null; // Stores the exact radius at the time of click
     this.dragOffset = { x: 0, y: 0 }; // Offset to maintain click position
     this.originalRadius = null; // Store the original radius when drag starts
+    this.comboCount = 0; // Track combo count during a single drag
+    
+    Logger.info('DragHandler initialized');
     
     // Set up the input handlers
     this.scene.input.on('pointerdown', this.onPointerDown, this);
@@ -20,8 +26,6 @@ export class DragHandler {
   
   onPointerDown(pointer) {
     if (this.isDragging) return;
-
-    console.log('current ball width', this);
     
     // Find the ball that was clicked on
     const balls = this.scene.balls.getChildren();
@@ -35,16 +39,55 @@ export class DragHandler {
         pointer.x, pointer.y,
         ball.x, ball.y
       );
-
- 
       
-      if (distance <= ball.width / 2) { // Using width/2 for radius
+      if (distance <= ball.displayWidth / 2) { // Using displayWidth/2 for more accurate radius
+        // Capture the exact current radius of the ball when clicked
+        this.clickCapturedRadius = ball.displayWidth / 2;
+        Logger.debug(`Ball clicked - Stored radius: ${this.clickCapturedRadius.toFixed(1)}`);
+        
         // Calculate click offset from center
         this.dragOffset = {
           x: pointer.x - ball.x, 
           y: pointer.y - ball.y
         };
-        this.startDrag(ball, pointer);
+        
+        // Check if the ball is already on a goal bar before starting drag
+        // This allows for immediate scoring if the ball is clicked while on a goal bar
+        let onGoalBar = false;
+        const goalBars = this.scene.goalBars;
+        
+        for (let j = 0; j < goalBars.length; j++) {
+          const bar = goalBars[j];
+          
+          // Create shapes for collision detection
+          const ballShape = new Phaser.Geom.Circle(ball.x, ball.y, ball.displayWidth / 2);
+          const barBounds = bar.getBounds();
+          const barShape = new Phaser.Geom.Rectangle(
+            barBounds.x, barBounds.y, barBounds.width, barBounds.height
+          );
+          
+          // Check for collision
+          if (Phaser.Geom.Intersects.CircleToRectangle(ballShape, barShape)) {
+            onGoalBar = true;
+            Logger.info(`Ball clicked while on ${CONFIG.colorNames[bar.barColor]} goal bar`);
+            
+            // Handle the collision based on color matching
+            if (bar.barColor === ball.colorIndex) {
+              // Correct goal bar - score!
+              this.handleCorrectGoal(ball, bar);
+            } else {
+              // Wrong goal bar - penalty!
+              this.handleWrongGoal(ball, bar);
+            }
+            break;
+          }
+        }
+        
+        // Only start drag if not on a goal bar
+        if (!onGoalBar) {
+          this.startDrag(ball, pointer);
+        }
+        
         break;
       }
     }
@@ -58,9 +101,20 @@ export class DragHandler {
     this.draggedBall = ball;
     this.startPosition = { x: ball.x, y: ball.y };
     
+    // Store the original radius of the ball before any changes
+    this.originalRadius = ball.originalRadius;
+    
     // Capture the EXACT current size of the ball at drag start
-    // This is the size we'll restore to when released
+    // This is the size we'll restore to when released if no merges occur
     this.dragStartRadius = ball.displayWidth / 2;
+    
+    // Reset combo count when starting a new drag
+    this.comboCount = 0;
+    
+    // Reset merge flag
+    this.mergeBallsOccurred = false;
+    
+    Logger.debug(`Starting drag - Ball: color=${CONFIG.colorNames[ball.colorIndex]}, radius=${this.dragStartRadius.toFixed(1)}, originalRadius=${this.originalRadius.toFixed(1)}`);
     
     // Stop pulsating animation
     ball.stopPulsating();
@@ -113,7 +167,7 @@ export class DragHandler {
       const bar = goalBars[i];
       
       // Create a circle shape for the ball
-      const ballShape = new Phaser.Geom.Circle(ball.x, ball.y, ball.width / 2);
+      const ballShape = new Phaser.Geom.Circle(ball.x, ball.y, ball.displayWidth / 2);
       
       // Create a rectangle shape for the goal bar
       const barBounds = bar.getBounds();
@@ -137,7 +191,7 @@ export class DragHandler {
   
   handleCorrectGoal(ball, bar) {
     // Add score based on radius
-    const radius = ball.width / 2;
+    const radius = ball.displayWidth / 2;
     const score = Math.floor(radius);
     this.scene.score += score;
     this.scene.uiManager.updateScore(this.scene.score);
@@ -187,8 +241,11 @@ export class DragHandler {
     
     const totalScore = Math.floor(ball.displayWidth * CONFIG.splitBallsTotalScore);
     const scorePerBall = Math.max(
-      CONFIG.minShatteredBallSize,
-      Math.floor(totalScore / count)
+      CONFIG.minBallSize,
+      Math.min(
+        CONFIG.maxBallSize,
+        Math.floor(totalScore / count)
+      )
     );
     
     // Create smaller balls
@@ -278,21 +335,32 @@ export class DragHandler {
     if (this.mergedThisFrame) return;
     this.mergedThisFrame = true;
     
+    // Set flag to indicate a merge occurred during this drag
+    this.mergeBallsOccurred = true;
+    
+    // Increment combo count
+    this.comboCount++;
+    
     // Get the radii of both balls
     const ballRadius = ball.displayWidth / 2;
     const otherRadius = otherBall.displayWidth / 2;
     
-    // Calculate new radius (not size/width) - combine radii
+    // Simply sum the radii for the new size
     const newRadius = ballRadius + otherRadius;
     
-    // Apply 1.1x bonus and round up
-    const bonusRadius = Math.ceil(newRadius * 1.1);
-    
     // Cap to max size
-    const finalRadius = Math.min(CONFIG.maxBallSize / 2, bonusRadius);
+    const finalRadius = Math.min(CONFIG.maxBallSize / 2, newRadius);
+    
+    // Calculate the value being added
+    const addedValue = Math.floor(otherRadius);
     
     // This is now our new drag radius - the size the ball should stay at
     this.dragStartRadius = finalRadius;
+    
+    // Update the ball's originalRadius to maintain the new size
+    ball.originalRadius = finalRadius;
+    
+    Logger.info(`Balls merged - ${CONFIG.colorNames[ball.colorIndex]} balls, radii: ${ballRadius.toFixed(1)} + ${otherRadius.toFixed(1)} = ${finalRadius.toFixed(1)}, new originalRadius=${ball.originalRadius.toFixed(1)}`);
     
     // Apply the new size (diameter = 2 * radius)
     const diameter = finalRadius * 2;
@@ -326,6 +394,14 @@ export class DragHandler {
       
       // Make sure score text stays on top
       this.scene.children.bringToTop(ball.scoreText);
+    }
+    
+    // Show combo animation if this is not the first merge
+    if (this.comboCount > 1) {
+      this.showComboText(ball.x, ball.y, `COMBO x${this.comboCount} +${addedValue}`);
+    } else {
+      // Show the value added even for the first merge
+      this.showScoreText(ball.x, ball.y, `+${addedValue}`);
     }
     
     // Play jiggle animation
@@ -409,6 +485,30 @@ export class DragHandler {
     });
   }
   
+  showComboText(x, y, comboText) {
+    const text = this.scene.add.text(x, y, comboText, {
+      fontSize: '28px',
+      fontFamily: CONFIG.fontFamily,
+      color: '#ffff00',
+      stroke: '#ff0000',
+      strokeThickness: 4,
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    
+    // Add a more dramatic animation for combos
+    this.scene.tweens.add({
+      targets: text,
+      y: y - 120,
+      scale: { from: 0.5, to: 1.5 },
+      alpha: { from: 1, to: 0 },
+      duration: 1200,
+      ease: 'Power2',
+      onComplete: () => {
+        text.destroy();
+      }
+    });
+  }
+  
   onPointerUp() {
     if (!this.isDragging || !this.draggedBall) return;
     
@@ -416,11 +516,11 @@ export class DragHandler {
     
     // If ball is not dead, resume its movement
     if (!ball.isDead) {
-      // The current exact size we're at (post any merges or initial drag)
-      const finalRadius = this.dragStartRadius;
+
+      // Use the current radius of the ball (which includes any merges)
+      const finalRadius = ball.originalRadius;
       
-      // Set the ball's official size - this should be persistent
-      ball.originalRadius = finalRadius;
+      Logger.debug(`Using final radius: ${finalRadius.toFixed(1)}, mergeBallsOccurred: ${this.mergeBallsOccurred}`);
       
       // Update physics body to match
       ball.body.setCircle(finalRadius);
@@ -441,8 +541,10 @@ export class DragHandler {
       ball.isDragging = false;
       
       // Now resume pulsation with the new base size
-      // This needs to pulsate AROUND our current exact size
-      ball.resumePulsating();
+      // Pass the final radius as the startFrom parameter
+      // ball.resumePulsating(finalRadius);
+      
+      Logger.info(`Ball released - Color: ${CONFIG.colorNames[ball.colorIndex]}, Radius: ${finalRadius.toFixed(1)}`);
     }
     
     // Reset drag state
@@ -455,6 +557,8 @@ export class DragHandler {
     this.dragOffset = { x: 0, y: 0 };
     this.dragStartRadius = null;
     this.originalRadius = null;
+    this.clickCapturedRadius = null;
+    this.comboCount = 0; // Reset combo count
     
     if (this.draggedBall) {
       this.draggedBall.isDragging = false;
