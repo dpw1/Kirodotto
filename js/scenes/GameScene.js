@@ -57,6 +57,10 @@ export class GameScene extends Phaser.Scene {
     this.isPaused = false;
     this.pauseMenu = null;
     
+    if (CONFIG.includeTimer) {
+      this.createTimerBar();
+    }
+    
     Logger.info('Game scene created successfully');
   }
   
@@ -332,6 +336,12 @@ export class GameScene extends Phaser.Scene {
       }
     };
     
+    ball.returnPulsation = function(radius) {
+      if (!this.isDead) {
+        this.scene.addPulsatingAnimation(this, null, radius);
+      }
+    };
+    
     // Add to the group
     this.balls.add(ball);
     
@@ -341,6 +351,7 @@ export class GameScene extends Phaser.Scene {
   addPulsatingAnimation(ball, forceScale, startFrom) {
     if (ball.isDead) return;
     
+
     // Get pulsation speed from config
     const pulseSpeed = Phaser.Math.FloatBetween(
       CONFIG.pulseSpeedRange[0], 
@@ -372,26 +383,12 @@ export class GameScene extends Phaser.Scene {
     
     // If startFrom is provided, use it as the starting point in the pulsation
     if (startFrom !== undefined && startFrom !== null) {
-      // Make sure the ball's originalRadius is updated to the startFrom value
-      ball.originalRadius = startFrom;
-      
-      // Recalculate baseRadius and baseSize with updated originalRadius
-      const baseRadius = ball.originalRadius;
-      const baseSize = baseRadius * 2;
-      
-      // Set the display size to match the new radius
-      ball.setDisplaySize(baseSize, baseSize);
-      
       // Calculate the scale relative to baseRadius
-      currentScale = 1.0; // Start at neutral scale since we've already set the size
-      
+      currentScale = startFrom / baseRadius;
       // Determine direction based on where we are in the cycle
-      // If closer to maxScale, we're going down next
-      // If closer to minScale, we're going up next
       const midPoint = (minScale + maxScale) / 2;
-      goingUp = true; // Always start going up from neutral position
-      
-      Logger.debug(`Ball pulsation starting from exact radius: ${startFrom.toFixed(1)}, baseSize: ${baseSize.toFixed(1)}`);
+      goingUp = currentScale < midPoint;
+      Logger.debug(`Ball pulsation starting from ${currentScale} (radius: ${startFrom}), direction: ${goingUp ? 'up' : 'down'}`);
     } else {
       Logger.debug(`Ball pulsation starting with default values, baseRadius: ${baseRadius.toFixed(1)}`);
     }
@@ -460,6 +457,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
   
+  createTimerBar() {
+    const width = this.cameras.main.width;
+    const barHeight = 2;
+    this.timerBar = this.add.rectangle(width, 0, width, barHeight, 0xffffff).setOrigin(1, 0);
+    this.timerBarStartWidth = width;
+    this.timerBarElapsed = 0;
+    this.timerBarActive = true;
+  }
+  
   update(time, delta) {
     if (!this.gameActive) return;
     
@@ -485,15 +491,33 @@ export class GameScene extends Phaser.Scene {
       }
       
       // Check for edge bouncing
-      if ((ball.x < ball.radius && ball.velocity.x < 0) || 
-          (ball.x > width - ball.radius && ball.velocity.x > 0)) {
+      const radius = ball.displayWidth / 2;
+      if ((ball.x < radius && ball.velocity.x < 0) || 
+          (ball.x > width - radius && ball.velocity.x > 0)) {
         ball.velocity.x *= -1;
       }
       
-      if ((ball.y < ball.radius && ball.velocity.y < 0) || 
-          (ball.y > height - ball.radius && ball.velocity.y > 0)) {
+      if ((ball.y < radius && ball.velocity.y < 0) || 
+          (ball.y > height - radius && ball.velocity.y > 0)) {
         ball.velocity.y *= -1;
       }
+    }
+    
+    // Timer logic
+    if (CONFIG.includeTimer && this.timerBarActive) {
+      this.timerBarElapsed += delta / 1000;
+      const percent = Math.max(0, 1 - this.timerBarElapsed / CONFIG.timeLimit);
+      this.timerBar.width = width * percent;
+      this.timerBar.x = width;
+      if (this.timerBarElapsed >= CONFIG.timeLimit) {
+        this.timerBarActive = false;
+        this.gameOver();
+      }
+    }
+    
+    // Check for collisions if a ball is being dragged
+    if (this.dragHandler && this.dragHandler.isDragging && this.dragHandler.draggedBall) {
+      this.dragHandler.checkBallCollision();
     }
   }
   
@@ -651,6 +675,10 @@ export class GameScene extends Phaser.Scene {
     
     // Reset game state
     this.gameActive = true;
+    
+    if (CONFIG.includeTimer) {
+      this.createTimerBar();
+    }
   }
   
   shutdown() {

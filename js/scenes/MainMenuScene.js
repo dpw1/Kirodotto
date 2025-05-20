@@ -198,13 +198,19 @@ export class MainMenuScene extends Phaser.Scene {
     });
     resetButton.setScale(0.7);
     
+    // Debug Options button
+    const debugOptionsButton = this.createButton(0, 120, 'Debug Options', () => {
+      this.showDebugOptions(panel);
+    });
+    debugOptionsButton.setScale(0.7);
+    
     // Close button
-    const closeButton = this.createButton(0, 120, 'Close', () => {
+    const closeButton = this.createButton(0, 170, 'Close', () => {
       panel.destroy();
     });
     closeButton.setScale(0.7);
     
-    panel.add([panelBg, titleText, hitboxText, hitboxSwitch, debugText, debugSwitch, resetButton, closeButton]);
+    panel.add([panelBg, titleText, hitboxText, hitboxSwitch, debugText, debugSwitch, resetButton, debugOptionsButton, closeButton]);
     
     // Add animation
     panel.setScale(0.5);
@@ -265,6 +271,92 @@ export class MainMenuScene extends Phaser.Scene {
     });
     
     return container;
+  }
+  
+  showDebugOptions(parentPanel) {
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+    
+    // Create a panel for debug options
+    const debugPanel = this.add.container(width / 2, height / 2);
+    const panelBg = this.add.graphics();
+    panelBg.fillStyle(0x222244, 0.95);
+    panelBg.fillRoundedRect(-250, -200, 500, 400, 20);
+    
+    const titleText = this.add.text(0, -170, 'Debug Options', {
+      fontFamily: CONFIG.fontFamily,
+      fontSize: '32px',
+      color: CONFIG.textColor
+    }).setOrigin(0.5);
+    
+    let y = -120;
+    const controls = [];
+    for (const key in CONFIG) {
+      if (!Object.prototype.hasOwnProperty.call(CONFIG, key)) continue;
+      const value = CONFIG[key];
+      if (typeof value === 'boolean') {
+        const label = this.add.text(-200, y, key + ':', {
+          fontFamily: CONFIG.fontFamily,
+          fontSize: '18px',
+          color: CONFIG.textColor
+        }).setOrigin(0, 0.5);
+        const checkbox = this.createSwitch(100, y, value, (v) => {
+          CONFIG[key] = v;
+        });
+        debugPanel.add([label, checkbox]);
+        controls.push(label, checkbox);
+        y += 40;
+      } else if (typeof value === 'number') {
+        const label = this.add.text(-200, y, key + ':', {
+          fontFamily: CONFIG.fontFamily,
+          fontSize: '18px',
+          color: CONFIG.textColor
+        }).setOrigin(0, 0.5);
+        const input = this.add.dom(100, y).createFromHTML(`<input type='number' value='${value}' style='width:80px'>`);
+        input.addListener('change');
+        input.on('change', (event) => {
+          CONFIG[key] = parseFloat(event.target.value);
+        });
+        debugPanel.add([label, input]);
+        controls.push(label, input);
+        y += 40;
+      } else if (typeof value === 'string') {
+        const label = this.add.text(-200, y, key + ':', {
+          fontFamily: CONFIG.fontFamily,
+          fontSize: '18px',
+          color: CONFIG.textColor
+        }).setOrigin(0, 0.5);
+        const input = this.add.dom(100, y).createFromHTML(`<input type='text' value='${value}' style='width:120px'>`);
+        input.addListener('change');
+        input.on('change', (event) => {
+          CONFIG[key] = event.target.value;
+        });
+        debugPanel.add([label, input]);
+        controls.push(label, input);
+        y += 40;
+      }
+      // Skip arrays/objects for now
+    }
+    
+    // Close button
+    const closeButton = this.createButton(0, 180, 'Close', () => {
+      debugPanel.destroy();
+      if (parentPanel) parentPanel.setVisible(true);
+    });
+    closeButton.setScale(0.7);
+    debugPanel.add([panelBg, titleText, closeButton]);
+    
+    // Hide parent panel while debug is open
+    if (parentPanel) parentPanel.setVisible(false);
+    
+    // Animate
+    debugPanel.setScale(0.5);
+    this.tweens.add({
+      targets: debugPanel,
+      scale: 1,
+      duration: 300,
+      ease: 'Back.easeOut'
+    });
   }
   
   shutdown() {

@@ -142,9 +142,21 @@ export class DragHandler {
     
     this.mergedThisFrame = false; // Reset merge flag at the beginning of frame
     
+    // Calculate new position
+    let newX = pointer.x - this.dragOffset.x;
+    let newY = pointer.y - this.dragOffset.y;
+    const ball = this.draggedBall;
+    const radius = ball.displayWidth / 2;
+    const width = this.scene.cameras.main.width;
+    const height = this.scene.cameras.main.height;
+    
+    // Clamp position so the ball stays on screen
+    newX = Math.max(radius, Math.min(width - radius, newX));
+    newY = Math.max(radius, Math.min(height - radius, newY));
+    
     // Update ball position to match pointer (considering offset)
-    this.draggedBall.x = pointer.x - this.dragOffset.x;
-    this.draggedBall.y = pointer.y - this.dragOffset.y;
+    ball.x = newX;
+    ball.y = newY;
     
     // Check collisions with goal bars
     this.checkGoalBarCollision();
@@ -294,9 +306,9 @@ export class DragHandler {
         otherBall.x, otherBall.y
       );
       
-      // Use the hitbox size (visual size including purple stroke) for collision detection
-      const ballRadius = ball.width / 2;
-      const otherBallRadius = otherBall.width / 2;
+      // Use the display size for collision detection (matches visual size)
+      const ballRadius = ball.displayWidth / 2;
+      const otherBallRadius = otherBall.displayWidth / 2;
       const combinedRadius = ballRadius + otherBallRadius;
       
       if (distance < combinedRadius) {
@@ -409,17 +421,31 @@ export class DragHandler {
   }
   
   playJiggleAnimation(ball) {
-    // Play a jiggle animation on the ball
+    // Improved: queue a jiggle if one is already running
+    if (ball.isJiggling) {
+      ball.jiggleQueued = true;
+      return;
+    }
+    ball.isJiggling = true;
+    ball.jiggleQueued = false;
     const originalScale = ball.scale;
-    
+    const gentleScale = originalScale * 1.05;
+    const gentleDuration = CONFIG.jiggleAnimationDuration / 3;
     this.scene.tweens.add({
       targets: ball,
-      scale: originalScale * CONFIG.jiggleAnimationScale,
-      duration: CONFIG.jiggleAnimationDuration / 2,
+      scale: gentleScale,
+      duration: gentleDuration,
       yoyo: true,
       ease: 'Sine.easeInOut',
       onComplete: () => {
         ball.scale = originalScale;
+        if (ball.jiggleQueued) {
+          ball.jiggleQueued = false;
+          // Immediately play another jiggle
+          this.playJiggleAnimation(ball);
+        } else {
+          ball.isJiggling = false;
+        }
       }
     });
   }
