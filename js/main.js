@@ -8,25 +8,25 @@ import { LevelCompleteScene } from './scenes/LevelCompleteScene.js';
 // Calculate game dimensions based on the aspect ratio
 const calculateGameDimensions = () => {
   const width = window.innerWidth;
-  const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const height = window.visualViewport
+    ? window.visualViewport.height
+    : window.innerHeight;
+
   const aspectRatio = CONFIG.phoneAspectRatio;
-  
-  let gameWidth, gameHeight;
-  
-  // Always use 100% of the height
-  gameHeight = height;
-  gameWidth = gameHeight * aspectRatio;
-  
-  // If the calculated width is greater than the window width,
-  // adjust to fit the window width
+
+  let gameWidth = height * aspectRatio;
+  let gameHeight = height;
+
   if (gameWidth > width) {
     gameWidth = width;
-    gameHeight = gameWidth / aspectRatio;
+    gameHeight = width / aspectRatio;
   }
-  
-  return { width: Math.floor(gameWidth), height: Math.floor(gameHeight) };
-};
 
+  return {
+    width: Math.floor(gameWidth),
+    height: Math.floor(gameHeight)
+  };
+};
 let dimensions = calculateGameDimensions();
 
 // Game configuration
