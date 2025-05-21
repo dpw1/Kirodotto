@@ -86,6 +86,7 @@ export class GameScene extends Phaser.Scene {
       Phaser.Display.Color.HexStringToColor(CONFIG.ballColors[barPositions.top]).color
     );
     topBar.barColor = barPositions.top;
+    topBar.setDepth(-1000)
     this.goalBars.push(topBar);
     
     // Bottom bar
@@ -97,6 +98,7 @@ export class GameScene extends Phaser.Scene {
       Phaser.Display.Color.HexStringToColor(CONFIG.ballColors[barPositions.bottom]).color
     );
     bottomBar.barColor = barPositions.bottom;
+    bottomBar.setDepth(-1000)
     this.goalBars.push(bottomBar);
     
     // Left bar
@@ -108,6 +110,7 @@ export class GameScene extends Phaser.Scene {
       Phaser.Display.Color.HexStringToColor(CONFIG.ballColors[barPositions.left]).color
     );
     leftBar.barColor = barPositions.left;
+    leftBar.setDepth(-1000)
     this.goalBars.push(leftBar);
     
     // Right bar
@@ -119,6 +122,7 @@ export class GameScene extends Phaser.Scene {
       Phaser.Display.Color.HexStringToColor(CONFIG.ballColors[barPositions.right]).color
     );
     rightBar.barColor = barPositions.right;
+    rightBar.setDepth(-1000)
     this.goalBars.push(rightBar);
   }
   
