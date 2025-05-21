@@ -491,14 +491,13 @@ export class GameScene extends Phaser.Scene {
       }
       
       // Check for edge bouncing
-      const radius = ball.displayWidth / 2;
-      if ((ball.x < radius && ball.velocity.x < 0) || 
-          (ball.x > width - radius && ball.velocity.x > 0)) {
+      if ((ball.x < ball.radius && ball.velocity.x < 0) || 
+          (ball.x > width - ball.radius && ball.velocity.x > 0)) {
         ball.velocity.x *= -1;
       }
       
-      if ((ball.y < radius && ball.velocity.y < 0) || 
-          (ball.y > height - radius && ball.velocity.y > 0)) {
+      if ((ball.y < ball.radius && ball.velocity.y < 0) || 
+          (ball.y > height - ball.radius && ball.velocity.y > 0)) {
         ball.velocity.y *= -1;
       }
     }

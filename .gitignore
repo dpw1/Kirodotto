@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+# Static libraries (keep js/lib/ for GitHub Pages)
+# !js/lib/
 npm-debug.log
 yarn-error.log
 
