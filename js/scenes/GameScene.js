@@ -3,6 +3,9 @@ import { UIManager } from '../utils/uiManager.js';
 import { DragHandler } from '../utils/dragHandler.js';
 import { Logger, log } from '../utils/logger.js';
 
+window.LAST_STOPPED_PULSATING_RADIUS = null;
+window.LAST_STOPPED_PULSATING_BALL_ID = null;
+
 export class GameScene extends Phaser.Scene {
   constructor() {
     super({ key: 'GameScene' });
@@ -305,6 +308,9 @@ export class GameScene extends Phaser.Scene {
     ball.stopPulsating = function() {
       Logger.debug(`Ball stopped pulsating: x=${this.x.toFixed(1)}, y=${this.y.toFixed(1)}`);
       this.scene.tweens.killTweensOf(this);
+      // Store radius and identifier globally
+      window.LAST_STOPPED_PULSATING_RADIUS = this.displayWidth / 2;
+      window.LAST_STOPPED_PULSATING_BALL_ID = this.name || `${this.x.toFixed(1)},${this.y.toFixed(1)}`;
     };
     
     ball.resumePulsating = function(startFrom) {

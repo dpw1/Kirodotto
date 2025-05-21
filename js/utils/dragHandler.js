@@ -15,6 +15,7 @@ export class DragHandler {
     this.dragOffset = { x: 0, y: 0 }; // Offset to maintain click position
     this.originalRadius = null; // Store the original radius when drag starts
     this.comboCount = 0; // Track combo count during a single drag
+    this.comboScore = 0; // Accumulate combo score during drag
     
     Logger.info('DragHandler initialized');
     
@@ -22,6 +23,10 @@ export class DragHandler {
     this.scene.input.on('pointerdown', this.onPointerDown, this);
     this.scene.input.on('pointermove', this.onPointerMove, this);
     this.scene.input.on('pointerup', this.onPointerUp, this);
+    
+    // At the top of the file, after imports:
+    window.MERGED_BALLS_DATA = window.MERGED_BALLS_DATA || {};
+    window.MERGED_BALL_ID_COUNTER = window.MERGED_BALL_ID_COUNTER || 1;
   }
   
   onPointerDown(pointer) {
@@ -110,6 +115,7 @@ export class DragHandler {
     
     // Reset combo count when starting a new drag
     this.comboCount = 0;
+    this.comboScore = 0;
     
     // Reset merge flag
     this.mergeBallsOccurred = false;
@@ -346,44 +352,33 @@ export class DragHandler {
     // Prevent multiple merges in one frame
     if (this.mergedThisFrame) return;
     this.mergedThisFrame = true;
-    
     // Set flag to indicate a merge occurred during this drag
     this.mergeBallsOccurred = true;
-    
     // Increment combo count
     this.comboCount++;
-    
     // Get the radii of both balls
     const ballRadius = ball.displayWidth / 2;
     const otherRadius = otherBall.displayWidth / 2;
-    
     // Simply sum the radii for the new size
     const newRadius = ballRadius + otherRadius;
-    
     // Cap to max size
     const finalRadius = Math.min(CONFIG.maxBallSize / 2, newRadius);
-    
-    // Calculate the value being added
-    const addedValue = Math.floor(otherRadius);
-    
     // This is now our new drag radius - the size the ball should stay at
     this.dragStartRadius = finalRadius;
-    
     // Update the ball's originalRadius to maintain the new size
     ball.originalRadius = finalRadius;
-    
-    Logger.info(`Balls merged - ${CONFIG.colorNames[ball.colorIndex]} balls, radii: ${ballRadius.toFixed(1)} + ${otherRadius.toFixed(1)} = ${finalRadius.toFixed(1)}, new originalRadius=${ball.originalRadius.toFixed(1)}`);
-    
+    // --- Assign a new unique identifier to the merged ball and store its radius ---
+    const newId = `merged_${window.MERGED_BALL_ID_COUNTER++}`;
+    ball.mergedId = newId;
+    window.MERGED_BALLS_DATA[newId] = finalRadius;
+    Logger.info(`Balls merged - ${CONFIG.colorNames[ball.colorIndex]} balls, radii: ${ballRadius.toFixed(1)} + ${otherRadius.toFixed(1)} = ${finalRadius.toFixed(1)}, new originalRadius=${ball.originalRadius.toFixed(1)}, mergedId=${newId}`);
     // Apply the new size (diameter = 2 * radius)
     const diameter = finalRadius * 2;
     ball.setDisplaySize(diameter, diameter);
-    
     // Update physics body to match new size
     ball.body.setCircle(finalRadius);
-    
     // Store this safe score value for later use
     const scoreValue = Math.floor(finalRadius);
-    
     // Create a particle effect at the other ball's position
     if (this.scene.createConfetti) {
       try {
@@ -396,26 +391,16 @@ export class DragHandler {
         console.warn("Confetti effect error:", error);
       }
     }
-    
     // Remove the other ball first
     this.scene.removeBall(otherBall);
-    
     // Now update score text to match new radius if debug enabled
     if (ball.scoreText && CONFIG.debugCode) {
       ball.scoreText.setText(scoreValue.toString());
-      
       // Make sure score text stays on top
       this.scene.children.bringToTop(ball.scoreText);
     }
-    
-    // Show combo animation if this is not the first merge
-    if (this.comboCount > 1) {
-      this.showComboText(ball.x, ball.y, `COMBO x${this.comboCount} +${addedValue}`);
-    } else {
-      // Show the value added even for the first merge
-      this.showScoreText(ball.x, ball.y, `+${addedValue}`);
-    }
-    
+    // Only show combo notification, do not update score here
+    this.showComboText(ball.x, ball.y, `Combo ${this.comboCount + 1}x`);
     // Play jiggle animation
     this.playJiggleAnimation(ball);
   }
@@ -566,11 +551,29 @@ export class DragHandler {
       // Reset dragging state on the ball
       ball.isDragging = false;
       
-      // Now resume pulsation with the new base size
-      // Pass the final radius as the startFrom parameter
-      // ball.resumePulsating(finalRadius);
+      // --- Resume pulsation at the exact size where the user let go ---
+      if (ball.mergedId && window.MERGED_BALLS_DATA[ball.mergedId] !== undefined) {
+        window.LAST_MERGED_PULSATING_RADIUS = window.MERGED_BALLS_DATA[ball.mergedId] * 2;
+        window.LAST_MERGED_PULSATING_BALL_ID = ball.mergedId;
+        // ball.resumePulsating(window.MERGED_BALLS_DATA[ball.mergedId]);
+        Logger.info(`Merged ball returned pulsating. The stored variable of its previous pulsation, Radius, is ${window.MERGED_BALLS_DATA[ball.mergedId]} (Ball ID: ${ball.mergedId})`);
+      } else if (typeof this.dragStartRadius === 'number') {
+        ball.resumePulsating(this.dragStartRadius);
+        if (this.mergeBallsOccurred) {
+          Logger.info(`Merged ball returned pulsating. The stored variable of its previous pulsation, Radius, is ${window.LAST_MERGED_PULSATING_RADIUS} (Ball ID: ${window.LAST_MERGED_PULSATING_BALL_ID})`);
+        } else {
+          Logger.info(`ball returned pulsating. The stored variable of its previous pulsation, Radius, is ${window.LAST_STOPPED_PULSATING_RADIUS} (Ball ID: ${window.LAST_STOPPED_PULSATING_BALL_ID})`);
+        }
+      }
       
-      Logger.info(`Ball released - Color: ${CONFIG.colorNames[ball.colorIndex]}, Radius: ${finalRadius.toFixed(1)}`);
+      Logger.info(`??wBall released - Color: ${CONFIG.colorNames[ball.colorIndex]}, Radius: ${finalRadius.toFixed(1)}`);
+      
+      // --- Add accumulated combo score to the scene's score ---
+      if (this.comboScore > 0) {
+        this.scene.score += this.comboScore;
+        this.scene.uiManager.updateScore(this.scene.score);
+        this.comboScore = 0;
+      }
     }
     
     // Reset drag state
