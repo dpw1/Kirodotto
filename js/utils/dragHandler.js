@@ -40,12 +40,17 @@ export class DragHandler {
       // Skip gray balls (they're dead)
       if (ball.isDead) continue;
       
+      // Calculate hitbox padding for mobile
+      let hitboxPadding = 0;
+      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        hitboxPadding = CONFIG.mobileHitboxPadding || 0;
+      }
       const distance = Phaser.Math.Distance.Between(
         pointer.x, pointer.y,
         ball.x, ball.y
       );
       
-      if (distance <= ball.displayWidth / 2) { // Using displayWidth/2 for more accurate radius
+      if (distance <= ball.displayWidth / 2 + hitboxPadding) { // Using displayWidth/2 for more accurate radius
         // Capture the exact current radius of the ball when clicked
         this.clickCapturedRadius = ball.displayWidth / 2;
         Logger.debug(`Ball clicked - Stored radius: ${this.clickCapturedRadius.toFixed(1)}`);

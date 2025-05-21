@@ -8,7 +8,7 @@ import { LevelCompleteScene } from './scenes/LevelCompleteScene.js';
 // Calculate game dimensions based on the aspect ratio
 const calculateGameDimensions = () => {
   const width = window.innerWidth;
-  const height = window.innerHeight;
+  const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   const aspectRatio = CONFIG.phoneAspectRatio;
   
   let gameWidth, gameHeight;
@@ -27,7 +27,7 @@ const calculateGameDimensions = () => {
   return { width: Math.floor(gameWidth), height: Math.floor(gameHeight) };
 };
 
-const dimensions = calculateGameDimensions();
+let dimensions = calculateGameDimensions();
 
 // Game configuration
 const config = {
@@ -38,6 +38,7 @@ const config = {
   parent: 'game-container',
   scale: {
     mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
     width: dimensions.width,
     height: dimensions.height
   },
@@ -60,8 +61,11 @@ const config = {
 // Create the game instance
 const game = new Phaser.Game(config);
 
-// Handle resize
-window.addEventListener('resize', () => {
-  const dimensions = calculateGameDimensions();
+function resizeGame() {
+  dimensions = calculateGameDimensions();
   game.scale.resize(dimensions.width, dimensions.height);
-}); 
+}
+
+window.addEventListener('resize', resizeGame);
+window.addEventListener('orientationchange', resizeGame);
+resizeGame(); 

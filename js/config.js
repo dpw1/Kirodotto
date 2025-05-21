@@ -43,5 +43,6 @@ export const CONFIG = {
   
   // Collision animation
   jiggleAnimationDuration: 500, // Duration of jiggle animation in ms
-  jiggleAnimationScale: 1.15 // Scale factor for the jiggle animation
+  jiggleAnimationScale: 1.15, // Scale factor for the jiggle animation
+  mobileHitboxPadding: 12 // Extra pixels for ball hitbox on mobile
 }; 
