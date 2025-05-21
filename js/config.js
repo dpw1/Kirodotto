@@ -7,7 +7,7 @@ export const CONFIG = {
   ballsPerLevel: 2,
   lives: 3,
   showHitbox: false, // If true, outline balls with a purple 2px stroke
-  debugCode: true, // If true, show ball scores above them
+  debugCode: false, // If true, show ball scores above them
   phoneAspectRatio: 16 / 9, // 16:9 aspect ratio
   ballColors: ['#4ea8de', '#f9d342', '#ff5d5d', '#4dd599'], // Blue, Yellow, Red, Green
   colorNames: ['blue', 'yellow', 'red', 'green'], // For easier reference
