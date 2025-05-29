@@ -1,5 +1,5 @@
-import { CONFIG } from '../config.js';
-import { Logger, log } from './logger.js';
+import { CONFIG } from "../config.js";
+import { Logger, log } from "./logger.js";
 
 export class DragHandler {
   constructor(scene, updateCallback) {
@@ -13,74 +13,93 @@ export class DragHandler {
     this.mergeBallsOccurred = false; // Flag to indicate if a ball merge happened during drag
     this.clickCapturedRadius = null; // Stores the exact radius at the time of click
     this.dragOffset = { x: 0, y: 0 }; // Offset to maintain click position
-    this.originalRadius = null; // Store the original radius when drag starts
-    this.comboCount = 0; // Track combo count during a single drag
+    this.originalRadius = null; // Store the original radius when drag starts    this.comboCount = 0; // Track combo count during a single drag
     this.comboScore = 0; // Accumulate combo score during drag
-    
-    Logger.info('DragHandler initialized');
-    
+    this.lastMergeTime = Date.now(); // Track last merge timestamp
+    this.mergeAnimationDelay = 2000; // Delay in milliseconds between merge animations
+
+    Logger.info("DragHandler initialized");
+
     // Set up the input handlers
-    this.scene.input.on('pointerdown', this.onPointerDown, this);
-    this.scene.input.on('pointermove', this.onPointerMove, this);
-    this.scene.input.on('pointerup', this.onPointerUp, this);
-    
+    this.scene.input.on("pointerdown", this.onPointerDown, this);
+    this.scene.input.on("pointermove", this.onPointerMove, this);
+    this.scene.input.on("pointerup", this.onPointerUp, this);
+
     // At the top of the file, after imports:
     window.MERGED_BALLS_DATA = window.MERGED_BALLS_DATA || {};
     window.MERGED_BALL_ID_COUNTER = window.MERGED_BALL_ID_COUNTER || 1;
   }
-  
+
   onPointerDown(pointer) {
     if (this.isDragging) return;
-    
+
     // Find the ball that was clicked on
     const balls = this.scene.balls.getChildren();
     for (let i = 0; i < balls.length; i++) {
       const ball = balls[i];
-      
+
       // Skip gray balls (they're dead)
       if (ball.isDead) continue;
-      
+
       // Calculate hitbox padding for mobile
       let hitboxPadding = 0;
-      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
         hitboxPadding = CONFIG.mobileHitboxPadding || 0;
       }
       const distance = Phaser.Math.Distance.Between(
-        pointer.x, pointer.y,
-        ball.x, ball.y
+        pointer.x,
+        pointer.y,
+        ball.x,
+        ball.y,
       );
-      
-      if (distance <= ball.displayWidth / 2 + hitboxPadding) { // Using displayWidth/2 for more accurate radius
+
+      if (distance <= ball.displayWidth / 2 + hitboxPadding) {
+        // Using displayWidth/2 for more accurate radius
         // Capture the exact current radius of the ball when clicked
         this.clickCapturedRadius = ball.displayWidth / 2;
-        Logger.debug(`Ball clicked - Stored radius: ${this.clickCapturedRadius.toFixed(1)}`);
-        
+        Logger.debug(
+          `Ball clicked - Stored radius: ${this.clickCapturedRadius.toFixed(
+            1,
+          )}`,
+        );
+
         // Calculate click offset from center
         this.dragOffset = {
-          x: pointer.x - ball.x, 
-          y: pointer.y - ball.y
+          x: pointer.x - ball.x,
+          y: pointer.y - ball.y,
         };
-        
+
         // Check if the ball is already on a goal bar before starting drag
         // This allows for immediate scoring if the ball is clicked while on a goal bar
         let onGoalBar = false;
         const goalBars = this.scene.goalBars;
-        
+
         for (let j = 0; j < goalBars.length; j++) {
           const bar = goalBars[j];
-          
+
           // Create shapes for collision detection
-          const ballShape = new Phaser.Geom.Circle(ball.x, ball.y, ball.displayWidth / 2);
+          const ballShape = new Phaser.Geom.Circle(
+            ball.x,
+            ball.y,
+            ball.displayWidth / 2,
+          );
           const barBounds = bar.getBounds();
           const barShape = new Phaser.Geom.Rectangle(
-            barBounds.x, barBounds.y, barBounds.width, barBounds.height
+            barBounds.x,
+            barBounds.y,
+            barBounds.width,
+            barBounds.height,
           );
-          
+
           // Check for collision
           if (Phaser.Geom.Intersects.CircleToRectangle(ballShape, barShape)) {
             onGoalBar = true;
-            Logger.info(`Ball clicked while on ${CONFIG.colorNames[bar.barColor]} goal bar`);
-            
+            Logger.info(
+              `Ball clicked while on ${
+                CONFIG.colorNames[bar.barColor]
+              } goal bar`,
+            );
+
             // Handle the collision based on color matching
             if (bar.barColor === ball.colorIndex) {
               // Correct goal bar - score!
@@ -92,67 +111,75 @@ export class DragHandler {
             break;
           }
         }
-        
+
         // Only start drag if not on a goal bar
         if (!onGoalBar) {
           this.startDrag(ball, pointer);
         }
-        
+
         break;
       }
     }
   }
-  
   startDrag(ball, pointer) {
     // If already dragging, ignore
     if (this.isDragging) return;
-    
+
     this.isDragging = true;
     this.draggedBall = ball;
     this.startPosition = { x: ball.x, y: ball.y };
-    
+
+    // Stop any ongoing jiggle animation
+    this.stopJiggleAnimation(ball);
+
     // Store the original radius of the ball before any changes
     this.originalRadius = ball.originalRadius;
-    
+
     // Capture the EXACT current size of the ball at drag start
     // This is the size we'll restore to when released if no merges occur
     this.dragStartRadius = ball.displayWidth / 2;
-    
+
     // Reset combo count when starting a new drag
     this.comboCount = 0;
     this.comboScore = 0;
-    
+
     // Reset merge flag
     this.mergeBallsOccurred = false;
-    
-    Logger.debug(`Starting drag - Ball: color=${CONFIG.colorNames[ball.colorIndex]}, radius=${this.dragStartRadius.toFixed(1)}, originalRadius=${this.originalRadius.toFixed(1)}`);
-    
+
+    Logger.debug(
+      `Starting drag - Ball: color=${
+        CONFIG.colorNames[ball.colorIndex]
+      }, radius=${this.dragStartRadius.toFixed(
+        1,
+      )}, originalRadius=${this.originalRadius.toFixed(1)}`,
+    );
+
     // Stop pulsating animation
     ball.stopPulsating();
-    
+
     // Ensure the ball keeps the exact size it had when grabbed
     const fixedSize = this.dragStartRadius * 2;
     ball.setDisplaySize(fixedSize, fixedSize);
-    
+
     // Update the physics body to match the current display size
     ball.body.enable = true;
     ball.body.setCircle(this.dragStartRadius);
-    
+
     // Bring to top
     this.scene.children.bringToTop(ball);
     if (ball.scoreText) {
       this.scene.children.bringToTop(ball.scoreText);
     }
-    
+
     // Set ball properties
     ball.isDragging = true;
   }
-  
+
   onPointerMove(pointer) {
     if (!this.isDragging || !this.draggedBall) return;
-    
+
     this.mergedThisFrame = false; // Reset merge flag at the beginning of frame
-    
+
     // Calculate new position
     let newX = pointer.x - this.dragOffset.x;
     let newY = pointer.y - this.dragOffset.y;
@@ -160,44 +187,51 @@ export class DragHandler {
     const radius = ball.displayWidth / 2;
     const width = this.scene.cameras.main.width;
     const height = this.scene.cameras.main.height;
-    
+
     // Clamp position so the ball stays on screen
     newX = Math.max(radius, Math.min(width - radius, newX));
     newY = Math.max(radius, Math.min(height - radius, newY));
-    
+
     // Update ball position to match pointer (considering offset)
     ball.x = newX;
     ball.y = newY;
-    
+
     // Check collisions with goal bars
     this.checkGoalBarCollision();
-    
+
     // Check collisions with other balls
     this.checkBallCollision();
-    
+
     // Call the update callback if provided
     if (this.updateCallback) this.updateCallback();
   }
-  
+
   checkGoalBarCollision() {
     const ball = this.draggedBall;
     if (!ball || ball.isDead) return;
-    
+
     // Check collision with each goal bar
     const goalBars = this.scene.goalBars;
-    
+
     for (let i = 0; i < goalBars.length; i++) {
       const bar = goalBars[i];
-      
+
       // Create a circle shape for the ball
-      const ballShape = new Phaser.Geom.Circle(ball.x, ball.y, ball.displayWidth / 2);
-      
+      const ballShape = new Phaser.Geom.Circle(
+        ball.x,
+        ball.y,
+        ball.displayWidth / 2,
+      );
+
       // Create a rectangle shape for the goal bar
       const barBounds = bar.getBounds();
       const barShape = new Phaser.Geom.Rectangle(
-        barBounds.x, barBounds.y, barBounds.width, barBounds.height
+        barBounds.x,
+        barBounds.y,
+        barBounds.width,
+        barBounds.height,
       );
-      
+
       // Check if the ball circle intersects with the goal bar rectangle
       if (Phaser.Geom.Intersects.CircleToRectangle(ballShape, barShape)) {
         if (bar.barColor === ball.colorIndex) {
@@ -211,117 +245,122 @@ export class DragHandler {
       }
     }
   }
-  
+
   handleCorrectGoal(ball, bar) {
     // Add score based on radius
     const radius = ball.displayWidth / 2;
     const score = Math.floor(radius);
     this.scene.score += score;
     this.scene.uiManager.updateScore(this.scene.score);
-    
+
     // Show score text
     this.showScoreText(ball.x, ball.y, `+${score}`);
-    
+
     // Create confetti effect at the ball's position with the ball's color
-    this.scene.createConfetti(ball.x, ball.y, CONFIG.ballColors[ball.colorIndex]);
-    
+    this.scene.createConfetti(
+      ball.x,
+      ball.y,
+      CONFIG.ballColors[ball.colorIndex],
+    );
+
     // Remove the ball
     this.scene.removeBall(ball);
-    
+
     // Reset drag state
     this.resetDragState();
-    
+
     // Check if level completed
     this.scene.checkLevelComplete();
   }
-  
+
   handleWrongGoal(ball, bar) {
     // Lose a life
     this.scene.loseLife();
-    
+
     // Turn the ball gray (dead)
     ball.setDead();
-    
+
     // Show skull emoji
-    this.showEmoji(ball.x, ball.y, '💀');
-    
+    this.showEmoji(ball.x, ball.y, "💀");
+
     // Split into smaller balls
     this.createSplitBalls(ball);
-    
+
     // Reset drag state
     this.resetDragState();
-    
+
     // Check if game over
     this.scene.checkGameOver();
   }
-  
+
   createSplitBalls(ball) {
     // Determine how many smaller balls to create using the config range
     const count = Phaser.Math.Between(
-      CONFIG.splitBallsRange[0], 
-      CONFIG.splitBallsRange[1]
+      CONFIG.splitBallsRange[0],
+      CONFIG.splitBallsRange[1],
     );
-    
-    const totalScore = Math.floor(ball.displayWidth * CONFIG.splitBallsTotalScore);
+
+    const totalScore = Math.floor(
+      ball.displayWidth * CONFIG.splitBallsTotalScore,
+    );
     const scorePerBall = Math.max(
       CONFIG.minBallSize,
-      Math.min(
-        CONFIG.maxBallSize,
-        Math.floor(totalScore / count)
-      )
+      Math.min(CONFIG.maxBallSize, Math.floor(totalScore / count)),
     );
-    
+
     // Create smaller balls
     for (let i = 0; i < count; i++) {
       // Random position near the original ball
       const angle = Phaser.Math.Between(0, 360);
       const distance = Phaser.Math.Between(20, 40);
-      const x = ball.x + Math.cos(angle * Math.PI / 180) * distance;
-      const y = ball.y + Math.sin(angle * Math.PI / 180) * distance;
-      
+      const x = ball.x + Math.cos((angle * Math.PI) / 180) * distance;
+      const y = ball.y + Math.sin((angle * Math.PI) / 180) * distance;
+
       // Random velocity
       const speed = Phaser.Math.FloatBetween(
         CONFIG.velocityRange[0],
-        CONFIG.velocityRange[1]
+        CONFIG.velocityRange[1],
       );
       const velocity = {
-        x: Math.cos(angle * Math.PI / 180) * speed,
-        y: Math.sin(angle * Math.PI / 180) * speed
+        x: Math.cos((angle * Math.PI) / 180) * speed,
+        y: Math.sin((angle * Math.PI) / 180) * speed,
       };
-      
+
       // Create the new ball
       this.scene.createBall({
         x: x,
         y: y,
         size: scorePerBall,
         colorIndex: ball.colorIndex,
-        velocity: velocity
+        velocity: velocity,
       });
     }
   }
-  
+
   checkBallCollision() {
     const ball = this.draggedBall;
     if (!ball || ball.isDead || this.mergedThisFrame) return;
-    
+
     const balls = this.scene.balls.getChildren();
-    
+
     for (let i = 0; i < balls.length; i++) {
       const otherBall = balls[i];
-      
+
       // Skip if it's the same ball or if the other ball is being dragged
       if (otherBall === ball || otherBall.isDragging) continue;
-      
+
       const distance = Phaser.Math.Distance.Between(
-        ball.x, ball.y,
-        otherBall.x, otherBall.y
+        ball.x,
+        ball.y,
+        otherBall.x,
+        otherBall.y,
       );
-      
+
       // Use the display size for collision detection (matches visual size)
       const ballRadius = ball.displayWidth / 2;
       const otherBallRadius = otherBall.displayWidth / 2;
       const combinedRadius = ballRadius + otherBallRadius;
-      
+
       if (distance < combinedRadius) {
         if (otherBall.isDead) {
           // Collision with a dead (gray) ball - lose a life
@@ -337,22 +376,22 @@ export class DragHandler {
       }
     }
   }
-  
+
   handleDeadBallCollision(ball) {
     // Lose a life
     this.scene.loseLife();
-    
+
     // Show skull emoji
-    this.showEmoji(ball.x, ball.y, '💀');
-    
+    this.showEmoji(ball.x, ball.y, "💀");
+
     // Turn the ball gray (dead) and stop it
     ball.setDead();
     ball.velocity = { x: 0, y: 0 };
-    
+
     // Reset drag state
     this.resetDragState();
   }
-  
+
   handleSameColorCollision(ball, otherBall) {
     // Prevent multiple merges in one frame
     if (this.mergedThisFrame) return;
@@ -361,36 +400,52 @@ export class DragHandler {
     this.mergeBallsOccurred = true;
     // Increment combo count
     this.comboCount++;
-    // Get the radii of both balls
+
     const ballRadius = ball.displayWidth / 2;
     const otherRadius = otherBall.displayWidth / 2;
-    // Simply sum the radii for the new size
+
     const newRadius = ballRadius + otherRadius;
-    // Cap to max size
+
     const finalRadius = Math.min(CONFIG.maxBallSize / 2, newRadius);
-    // This is now our new drag radius - the size the ball should stay at
+
     this.dragStartRadius = finalRadius;
-    // Update the ball's originalRadius to maintain the new size
+
     ball.originalRadius = finalRadius;
-    // --- Assign a new unique identifier to the merged ball and store its radius ---
     const newId = `merged_${window.MERGED_BALL_ID_COUNTER++}`;
     ball.mergedId = newId;
     window.MERGED_BALLS_DATA[newId] = finalRadius;
-    Logger.info(`Balls merged - ${CONFIG.colorNames[ball.colorIndex]} balls, radii: ${ballRadius.toFixed(1)} + ${otherRadius.toFixed(1)} = ${finalRadius.toFixed(1)}, new originalRadius=${ball.originalRadius.toFixed(1)}, mergedId=${newId}`);
-    // Apply the new size (diameter = 2 * radius)
-    const diameter = finalRadius * 2;
-    ball.setDisplaySize(diameter, diameter);
-    // Update physics body to match new size
-    ball.body.setCircle(finalRadius);
-    // Store this safe score value for later use
+    Logger.info(
+      `Balls merged - ${
+        CONFIG.colorNames[ball.colorIndex]
+      } balls, radii: ${ballRadius.toFixed(1)} + ${otherRadius.toFixed(
+        1,
+      )} = ${finalRadius.toFixed(
+        1,
+      )}, new originalRadius=${ball.originalRadius.toFixed(
+        1,
+      )}, mergedId=${newId}`,
+    );
+
+    // Immediately update the physics body and hitbox
+    if (ball.body) {
+      ball.body.setCircle(finalRadius);
+      ball.body.offset.set(finalRadius, finalRadius);
+      // Set the display size to match the new physics size
+      ball.setDisplaySize(finalRadius * 2, finalRadius * 2);
+    }
+
+    // Start the visual merge animation
+    this.handleMergeAnimation(ball, finalRadius);
+
     const scoreValue = Math.floor(finalRadius);
-    // Create a particle effect at the other ball's position
+
     if (this.scene.createConfetti) {
       try {
         // Create particles at the otherBall position
         this.scene.createConfetti(
-          otherBall.x, otherBall.y,
-          CONFIG.ballColors[ball.colorIndex]
+          otherBall.x,
+          otherBall.y,
+          CONFIG.ballColors[ball.colorIndex],
         );
       } catch (error) {
         console.warn("Confetti effect error:", error);
@@ -403,73 +458,230 @@ export class DragHandler {
       ball.scoreText.setText(scoreValue.toString());
       // Make sure score text stays on top
       this.scene.children.bringToTop(ball.scoreText);
-    }
-    // Only show combo notification, do not update score here
-    this.showComboText(ball.x, ball.y, `Combo ${this.comboCount + 1}x`);
-    // Play jiggle animation
+    } // Only show combo notification, do not update score here
+    this.showComboText(ball.x, ball.y, `Combo ${this.comboCount + 1}x`); // Check if enough time has passed since last merge animation
+    const currentTime = Date.now();
+    const timeSinceLastMerge = currentTime - this.lastMergeTime;
+    Logger.debug(
+      `Time since last merge: ${timeSinceLastMerge}ms, delay: ${this.mergeAnimationDelay}ms`,
+    );
     this.playJiggleAnimation(ball);
+
+    Logger.info(`Applying radius: ${finalRadius}`);
+    // Add debugger when combo count reaches 3
+    if (this.comboCount === 2) {
+      // 2 because this is the third merge (1st merge = count 0, 2nd = count 1, 3rd = count 2)
+      setTimeout(() => {
+        // debugger;
+      }, 100); // Wait 1 second before showing debug message
+    }
   }
-  
   playJiggleAnimation(ball) {
-    // Improved: queue a jiggle if one is already running
     if (ball.isJiggling) {
       ball.jiggleQueued = true;
       return;
     }
+
+    // Don't start animation if ball is being dragged or is merging
+    if (ball.isDragging || ball.isMerging) {
+      return;
+    }
+
     ball.isJiggling = true;
     ball.jiggleQueued = false;
-    const originalScale = ball.scale;
-    const gentleScale = originalScale * 1.05;
-    const gentleDuration = CONFIG.jiggleAnimationDuration / 3;
+
+    // Store original values - use offset approach for position
+    const originalScaleX = ball.scaleX;
+    const originalScaleY = ball.scaleY;
+    const originalAngle = ball.angle;
+
+    // Use offset instead of absolute position to avoid conflicts
+    let yOffset = 0;
+
+    // Create a timeline for better control
+    const timeline = this.scene.tweens.timeline({
+      tweens: [
+        {
+          targets: ball,
+          scaleX: originalScaleX * 1.2,
+          scaleY: originalScaleY * 0.8,
+          angle: originalAngle - 3,
+          duration: 100,
+          ease: "Quad.easeOut",
+          onUpdate: () => {
+            // Only apply position offset if not being dragged
+            if (!ball.isDragging && !ball.isMerging) {
+              yOffset = ball.displayHeight * 0.1;
+              ball.y += yOffset - (ball.previousYOffset || 0);
+              ball.previousYOffset = yOffset;
+            }
+          },
+        },
+        {
+          targets: ball,
+          scaleX: originalScaleX * 0.8,
+          scaleY: originalScaleY * 1.2,
+          angle: originalAngle + 3,
+          duration: 100,
+          offset: 100,
+          ease: "Sine.easeInOut",
+          onUpdate: () => {
+            if (!ball.isDragging && !ball.isMerging) {
+              yOffset = -ball.displayHeight * 0.1;
+              ball.y += yOffset - (ball.previousYOffset || 0);
+              ball.previousYOffset = yOffset;
+            }
+          },
+        },
+        {
+          targets: ball,
+          scaleX: originalScaleX * 1.1,
+          scaleY: originalScaleY * 0.9,
+          angle: originalAngle - 2,
+          duration: 80,
+          offset: 200,
+          ease: "Quad.easeInOut",
+          onUpdate: () => {
+            if (!ball.isDragging && !ball.isMerging) {
+              yOffset = ball.displayHeight * 0.05;
+              ball.y += yOffset - (ball.previousYOffset || 0);
+              ball.previousYOffset = yOffset;
+            }
+          },
+        },
+        {
+          targets: ball,
+          scaleX: originalScaleX,
+          scaleY: originalScaleY,
+          angle: originalAngle,
+          duration: 120,
+          offset: 280,
+          ease: "Back.easeOut",
+          onUpdate: () => {
+            if (!ball.isDragging && !ball.isMerging) {
+              yOffset = 0;
+              ball.y += yOffset - (ball.previousYOffset || 0);
+              ball.previousYOffset = yOffset;
+            }
+          },
+          onComplete: () => {
+            // Clean up
+            ball.previousYOffset = 0;
+
+            if (ball.jiggleQueued && !ball.isDragging && !ball.isMerging) {
+              ball.jiggleQueued = false;
+              this.playJiggleAnimation(ball);
+            } else {
+              ball.isJiggling = false;
+            }
+          },
+        },
+      ],
+    });
+
+    // Store timeline reference for cleanup
+    ball.jiggleTimeline = timeline;
+  }
+
+  stopJiggleAnimation(ball) {
+    if (ball.jiggleTimeline) {
+      ball.jiggleTimeline.destroy();
+      ball.jiggleTimeline = null;
+    }
+
+    if (ball.isJiggling) {
+      // Reset to clean state without animation
+      ball.scaleX = ball.originalScale || ball.scaleX;
+      ball.scaleY = ball.originalScale || ball.scaleY;
+      ball.angle = 0;
+      ball.previousYOffset = 0;
+      ball.isJiggling = false;
+      ball.jiggleQueued = false;
+    }
+  }
+  handleMergeAnimation(ball, newRadius) {
+    // Stop any ongoing jiggle
+    this.stopJiggleAnimation(ball);
+
+    // Set merge flag to prevent new jiggles during merge
+    ball.isMerging = true;
+
+    // Get the base width from various possible sources
+    let baseWidth = 64; // Default fallback size
+    if (ball.frame?.width) {
+      baseWidth = ball.frame.width;
+    } else if (ball.width) {
+      baseWidth = ball.width;
+    } else if (ball.texture?.width) {
+      baseWidth = ball.texture.width;
+    }
+
+    // Calculate and validate the new scale
+    const newScale = (newRadius * 2) / baseWidth;
+    if (!Number.isFinite(newScale) || newScale <= 0) {
+      console.warn(
+        "Invalid scale calculated:",
+        newScale,
+        "Using fallback scale 1",
+      );
+      ball.originalScale = 1;
+      ball.isMerging = false;
+      return;
+    }
+
+    // Smooth transition to new size
     this.scene.tweens.add({
       targets: ball,
-      scale: gentleScale,
-      duration: gentleDuration,
-      yoyo: true,
-      ease: 'Sine.easeInOut',
+      scaleX: newScale,
+      scaleY: newScale,
+      duration: 200,
+      ease: "Back.easeOut",
       onComplete: () => {
-        ball.scale = originalScale;
-        if (ball.jiggleQueued) {
-          ball.jiggleQueued = false;
-          // Immediately play another jiggle
-          this.playJiggleAnimation(ball);
-        } else {
-          ball.isJiggling = false;
+        ball.isMerging = false;
+        // Store the new scale as original for future jiggles
+        ball.originalScale = newScale;
+
+        // Update physics body with new size if it exists
+        if (ball.body) {
+          ball.body.setCircle(newRadius);
+          ball.body.offset.set(newRadius, newRadius);
         }
-      }
+      },
     });
   }
-  
+
   handleDifferentColorCollision(ball, otherBall) {
     // Lose a life
     this.scene.loseLife();
-    
+
     // Turn both balls gray (dead)
     ball.setDead();
     otherBall.setDead();
-    
+
     // Stop both balls from moving
     ball.velocity = { x: 0, y: 0 };
     otherBall.velocity = { x: 0, y: 0 };
-    
+
     // Stop otherBall pulsation
     otherBall.stopPulsating();
-    
+
     // Show skull emoji
-    this.showEmoji(ball.x, ball.y, '💀');
-    
+    this.showEmoji(ball.x, ball.y, "💀");
+
     // Reset drag state
     this.resetDragState();
-    
+
     // Check if game over
     this.scene.checkGameOver();
   }
-  
+
   showEmoji(x, y, emoji) {
-    const text = this.scene.add.text(x, y, emoji, {
-      fontSize: '32px'
-    }).setOrigin(0.5);
-    
+    const text = this.scene.add
+      .text(x, y, emoji, {
+        fontSize: "32px",
+      })
+      .setOrigin(0.5);
+
     this.scene.tweens.add({
       targets: text,
       y: y - 100,
@@ -477,19 +689,21 @@ export class DragHandler {
       duration: 1000,
       onComplete: () => {
         text.destroy();
-      }
+      },
     });
   }
-  
+
   showScoreText(x, y, scoreText) {
-    const text = this.scene.add.text(x, y, scoreText, {
-      fontSize: '24px',
-      fontFamily: CONFIG.fontFamily,
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 3
-    }).setOrigin(0.5);
-    
+    const text = this.scene.add
+      .text(x, y, scoreText, {
+        fontSize: "24px",
+        fontFamily: CONFIG.fontFamily,
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5);
+
     this.scene.tweens.add({
       targets: text,
       y: y - 80,
@@ -497,20 +711,22 @@ export class DragHandler {
       duration: 1000,
       onComplete: () => {
         text.destroy();
-      }
+      },
     });
   }
-  
+
   showComboText(x, y, comboText) {
-    const text = this.scene.add.text(x, y, comboText, {
-      fontSize: '28px',
-      fontFamily: CONFIG.fontFamily,
-      color: '#ffff00',
-      stroke: '#ff0000',
-      strokeThickness: 4,
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-    
+    const text = this.scene.add
+      .text(x, y, comboText, {
+        fontSize: "28px",
+        fontFamily: CONFIG.fontFamily,
+        color: "#ffff00",
+        stroke: "#ff0000",
+        strokeThickness: 4,
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+
     // Add a more dramatic animation for combos
     this.scene.tweens.add({
       targets: text,
@@ -518,61 +734,82 @@ export class DragHandler {
       scale: { from: 0.5, to: 1.5 },
       alpha: { from: 1, to: 0 },
       duration: 1200,
-      ease: 'Power2',
+      ease: "Power2",
       onComplete: () => {
         text.destroy();
-      }
+      },
     });
   }
-  
+
   onPointerUp() {
     if (!this.isDragging || !this.draggedBall) return;
-    
+
     const ball = this.draggedBall;
-    
+
     // If ball is not dead, resume its movement
     if (!ball.isDead) {
-
       // Use the current radius of the ball (which includes any merges)
       const finalRadius = ball.originalRadius;
-      
-      Logger.debug(`Using final radius: ${finalRadius.toFixed(1)}, mergeBallsOccurred: ${this.mergeBallsOccurred}`);
-      
-      // Update physics body to match
-      ball.body.setCircle(finalRadius);
-      
-      // Ensure the display size matches exactly
+
+      Logger.debug(
+        `Using final radius: ${finalRadius.toFixed(1)}, mergeBallsOccurred: ${
+          this.mergeBallsOccurred
+        }`,
+      ); // Ensure the display size matches exactly
       const diameter = finalRadius * 2;
       ball.setDisplaySize(diameter, diameter);
-      
+
+      // Update Arcade Physics body to match new size
+      if (ball.body) {
+        ball.body.setCircle(finalRadius);
+        // Offset the body to center it on the sprite
+        ball.body.offset.set(finalRadius, finalRadius);
+      }
+
       // Update score text to match new radius if debug enabled
       if (ball.scoreText && CONFIG.debugCode) {
         ball.scoreText.setText(Math.floor(finalRadius).toString());
-        
+
         // Make sure score text stays on top
         this.scene.children.bringToTop(ball.scoreText);
       }
-      
+
       // Reset dragging state on the ball
       ball.isDragging = false;
-      
+
       // --- Resume pulsation at the exact size where the user let go ---
-      if (ball.mergedId && window.MERGED_BALLS_DATA[ball.mergedId] !== undefined) {
-        window.LAST_MERGED_PULSATING_RADIUS = window.MERGED_BALLS_DATA[ball.mergedId] * 2;
+      if (
+        ball.mergedId &&
+        window.MERGED_BALLS_DATA[ball.mergedId] !== undefined
+      ) {
+        window.LAST_MERGED_PULSATING_RADIUS =
+          window.MERGED_BALLS_DATA[ball.mergedId] * 2;
         window.LAST_MERGED_PULSATING_BALL_ID = ball.mergedId;
         // ball.resumePulsating(window.MERGED_BALLS_DATA[ball.mergedId]);
-        Logger.info(`Merged ball returned pulsating. The stored variable of its previous pulsation, Radius, is ${window.MERGED_BALLS_DATA[ball.mergedId]} (Ball ID: ${ball.mergedId})`);
-      } else if (typeof this.dragStartRadius === 'number') {
+        Logger.info(
+          `Merged ball returned pulsating. The stored variable of its previous pulsation, Radius, is ${
+            window.MERGED_BALLS_DATA[ball.mergedId]
+          } (Ball ID: ${ball.mergedId})`,
+        );
+      } else if (typeof this.dragStartRadius === "number") {
         ball.resumePulsating(this.dragStartRadius);
         if (this.mergeBallsOccurred) {
-          Logger.info(`Merged ball returned pulsating. The stored variable of its previous pulsation, Radius, is ${window.LAST_MERGED_PULSATING_RADIUS} (Ball ID: ${window.LAST_MERGED_PULSATING_BALL_ID})`);
+          Logger.info(
+            `Merged ball returned pulsating. The stored variable of its previous pulsation, Radius, is ${window.LAST_MERGED_PULSATING_RADIUS} (Ball ID: ${window.LAST_MERGED_PULSATING_BALL_ID})`,
+          );
         } else {
-          Logger.info(`ball returned pulsating. The stored variable of its previous pulsation, Radius, is ${window.LAST_STOPPED_PULSATING_RADIUS} (Ball ID: ${window.LAST_STOPPED_PULSATING_BALL_ID})`);
+          Logger.info(
+            `ball returned pulsating. The stored variable of its previous pulsation, Radius, is ${window.LAST_STOPPED_PULSATING_RADIUS} (Ball ID: ${window.LAST_STOPPED_PULSATING_BALL_ID})`,
+          );
         }
       }
-      
-      Logger.info(`??wBall released - Color: ${CONFIG.colorNames[ball.colorIndex]}, Radius: ${finalRadius.toFixed(1)}`);
-      
+
+      Logger.info(
+        `??wBall released - Color: ${
+          CONFIG.colorNames[ball.colorIndex]
+        }, Radius: ${finalRadius.toFixed(1)}`,
+      );
+
       // --- Add accumulated combo score to the scene's score ---
       if (this.comboScore > 0) {
         this.scene.score += this.comboScore;
@@ -580,11 +817,34 @@ export class DragHandler {
         this.comboScore = 0;
       }
     }
-    
+
     // Reset drag state
     this.resetDragState();
   }
-  
+
+  onDragEnd(pointer) {
+    if (!this.draggedBall) return;
+
+    const ball = this.draggedBall;
+    ball.isDragging = false;
+
+    // Get the stored final values
+    const finalSize = ball.getData("finalSize");
+    const finalRadius = ball.getData("originalRadius");
+
+    if (finalSize && finalRadius) {
+      ball.setDisplaySize(finalSize, finalSize);
+      ball.originalRadius = finalRadius;
+      ball.resumePulsating(finalRadius);
+
+      // Clear the stored data
+      ball.removeData("finalSize");
+      ball.removeData("originalRadius");
+    }
+
+    this.draggedBall = null;
+  }
+
   resetDragState() {
     this.isDragging = false;
     this.mergedThisFrame = false;
@@ -593,17 +853,17 @@ export class DragHandler {
     this.originalRadius = null;
     this.clickCapturedRadius = null;
     this.comboCount = 0; // Reset combo count
-    
+
     if (this.draggedBall) {
       this.draggedBall.isDragging = false;
       this.draggedBall = null;
     }
   }
-  
+
   destroy() {
     // Clean up event listeners
-    this.scene.input.off('pointerdown', this.onPointerDown, this);
-    this.scene.input.off('pointermove', this.onPointerMove, this);
-    this.scene.input.off('pointerup', this.onPointerUp, this);
+    this.scene.input.off("pointerdown", this.onPointerDown, this);
+    this.scene.input.off("pointermove", this.onPointerMove, this);
+    this.scene.input.off("pointerup", this.onPointerUp, this);
   }
-} 
+}
