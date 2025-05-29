@@ -432,6 +432,8 @@ export class DragHandler {
       ball.body.offset.set(finalRadius, finalRadius);
       // Set the display size to match the new physics size
       ball.setDisplaySize(finalRadius * 2, finalRadius * 2);
+      // Update the .radius property for wall bounce logic
+      ball.radius = finalRadius;
     }
 
     // Start the visual merge animation
