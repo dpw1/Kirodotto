@@ -1,9 +1,9 @@
-import { CONFIG } from './config.js';
-import { BootScene } from './scenes/BootScene.js';
-import { MainMenuScene } from './scenes/MainMenuScene.js';
-import { GameScene } from './scenes/GameScene.js';
-import { GameOverScene } from './scenes/GameOverScene.js';
-import { LevelCompleteScene } from './scenes/LevelCompleteScene.js';
+import { CONFIG } from "./config.js";
+import { BootScene } from "./scenes/BootScene.js";
+import { MainMenuScene } from "./scenes/MainMenuScene.js";
+import { GameScene } from "./scenes/GameScene.js";
+import { GameOverScene } from "./scenes/GameOverScene.js";
+import { LevelCompleteScene } from "./scenes/LevelCompleteScene.js";
 
 // Calculate game dimensions based on the aspect ratio
 const calculateGameDimensions = () => {
@@ -24,7 +24,7 @@ const calculateGameDimensions = () => {
 
   return {
     width: Math.floor(gameWidth),
-    height: Math.floor(gameHeight)
+    height: Math.floor(gameHeight),
   };
 };
 let dimensions = calculateGameDimensions();
@@ -35,27 +35,30 @@ const config = {
   width: dimensions.width,
   height: dimensions.height,
   backgroundColor: CONFIG.backgroundColor,
-  parent: 'game-container',
+  parent: "game-container",
+  dom: {
+    createContainer: true,
+  },
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: dimensions.width,
-    height: dimensions.height
+    height: dimensions.height,
   },
   physics: {
-    default: 'arcade',
+    default: "arcade",
     arcade: {
       debug: false,
-      gravity: { y: 0 }
-    }
+      gravity: { y: 0 },
+    },
   },
   scene: [
     BootScene,
     MainMenuScene,
     GameScene,
     GameOverScene,
-    LevelCompleteScene
-  ]
+    LevelCompleteScene,
+  ],
 };
 
 // Create the game instance
@@ -66,6 +69,6 @@ function resizeGame() {
   game.scale.resize(dimensions.width, dimensions.height);
 }
 
-window.addEventListener('resize', resizeGame);
-window.addEventListener('orientationchange', resizeGame);
-resizeGame(); 
+window.addEventListener("resize", resizeGame);
+window.addEventListener("orientationchange", resizeGame);
+resizeGame();

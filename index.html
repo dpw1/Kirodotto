@@ -36,12 +36,27 @@
         canvas {
             display: block;
         }
+
+        /* Styles for debug menu inputs */
+        input {
+            background: #333;
+            color: white;
+            border: 1px solid #666;
+            padding: 4px 8px;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: #888;
+        }
     </style>
 </head>
 
 <body>
     <div id="game-container"></div>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3/plugins/spine/dist/SpinePlugin.min.js"></script>
     <script type="module" src="js/main.js"></script>
 </body>
 
