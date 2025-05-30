@@ -324,20 +324,36 @@ export class GameScene extends Phaser.Scene {
       ball.velocity = { x: 0, y: 0 };
     }
 
-    // If debug mode is enabled, show the score on the ball
+    // If debug mode is enabled, show the score and combo on the ball
     if (CONFIG.debugCode) {
-      // Use the radius (which is half the width) as the score
+      const textGroup = this.add.container(x, y);
+      ball.comboCount = 1; // Initialize combo counter
+
+      // Base radius text
       const scoreValue = Math.floor(radius);
       const scoreText = this.add
-        .text(x, y, scoreValue.toString(), {
+        .text(0, -10, scoreValue.toString(), {
           fontSize: "14px",
           color: "#ffffff",
         })
         .setOrigin(0.5);
-      ball.scoreText = scoreText;
 
-      // Make sure the score is attached to the ball
-      this.children.bringToTop(scoreText);
+      // Initialize with base radius shown in purple parentheses
+      const comboText = this.add
+        .text(0, 5, `(${scoreValue})`, {
+          fontSize: "12px",
+          color: "#ff00ff", // Purple color
+        })
+        .setOrigin(0.5);
+
+      textGroup.add([scoreText, comboText]);
+      ball.scoreText = scoreText;
+      ball.comboText = comboText;
+      ball.textGroup = textGroup;
+      ball.comboCount = 1; // Initialize combo counter
+
+      // Make sure text stays on top
+      this.children.bringToTop(textGroup);
     }
 
     // If configured to show hitbox, add a stroke
@@ -522,11 +538,24 @@ export class GameScene extends Phaser.Scene {
       ball.height = ball.width;
     }
 
-    // Update the score text to reflect current size if in debug mode
-    if (ball.scoreText && CONFIG.debugCode) {
-      // Calculate the current actual radius of the ball based on its display size
+    // Update the debug displays if enabled
+    if (CONFIG.debugCode && ball.scoreText && ball.comboText) {
+      // Get the current actual radius from the display size
       const currentRadius = Math.floor(ball.displayWidth / 2);
-      ball.scoreText.setText(currentRadius.toString());
+
+      if (ball.comboCount > 1) {
+        // For merged balls, show the base radius × combo
+        const baseRadius = Math.floor(currentRadius / ball.comboCount);
+        ball.scoreText.setText(currentRadius.toString());
+        ball.comboText.setText(`(${baseRadius} × ${ball.comboCount})`);
+      } else {
+        // For non-merged balls, show the current radius and formula as-is
+        ball.scoreText.setText(currentRadius.toString());
+        ball.comboText.setText(`(${currentRadius})`);
+      }
+
+      // Ensure combo text stays purple
+      ball.comboText.setColor("#ff00ff");
     }
   }
 
@@ -563,9 +592,9 @@ export class GameScene extends Phaser.Scene {
       ball.y += (ball.velocity.y * delta) / 1000;
 
       // Update debug text position if exists
-      if (ball.scoreText) {
-        ball.scoreText.x = ball.x;
-        ball.scoreText.y = ball.y;
+      if (CONFIG.debugCode && ball.textGroup) {
+        ball.textGroup.x = ball.x;
+        ball.textGroup.y = ball.y;
       }
 
       // Check for edge bouncing using physics body
@@ -823,56 +852,5 @@ export class GameScene extends Phaser.Scene {
         balls[i].resumePulsating();
       }
     }
-  }
-
-  async mergeBalls(ball1, ball2) {
-    // Stop pulsation before merge
-    ball1.stopPulsating();
-    ball2.stopPulsating();
-
-    // Calculate new size
-    const newSize = calculateNewSize(ball1, ball2);
-
-    // Update the ball's core properties first
-    ball1.originalRadius = newSize / 2;
-    ball1.setDisplaySize(newSize, newSize);
-    ball1.radius = newSize / 2; // Ensure wall bounce uses correct radius after merge
-
-    // Enable and update physics body
-    if (ball1.body) {
-      ball1.body.enable = true;
-      ball1.body.setCircle(newSize / 2);
-      // Center the physics body on the ball
-      ball1.body.setOffset(-newSize / 2, -newSize / 2);
-    }
-
-    // Store both the finalSize and originalRadius to ensure consistency
-    ball1.setData("finalSize", newSize);
-    ball1.setData("originalRadius", newSize / 2);
-
-    // Perform merge animation
-    await this.performMergeAnimation(ball1, ball2);
-
-    // Force update the size and radius again after animation
-    ball1.originalRadius = ball1.getData("originalRadius");
-    ball1.setDisplaySize(newSize, newSize);
-    ball1.radius = newSize / 2; // Ensure wall bounce uses correct radius after merge animation
-
-    // Update physics body again after animation
-    if (ball1.body) {
-      ball1.body.setCircle(newSize / 2);
-      ball1.body.setOffset(-newSize / 2, -newSize / 2);
-    }
-
-    // Only resume pulsating after everything is complete and if not being dragged
-    if (!ball1.isDragging) {
-      ball1.resumePulsating(ball1.getData("originalRadius"));
-    }
-
-    Logger.debug(
-      `Merge complete - Final size: ${newSize}, originalRadius: ${ball1.getData(
-        "originalRadius",
-      )}`,
-    );
   }
 } // Close the GameScene class

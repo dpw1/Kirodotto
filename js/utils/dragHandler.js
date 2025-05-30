@@ -161,12 +161,10 @@ export class DragHandler {
 
     // Update the physics body to match the current display size
     ball.body.enable = true;
-    ball.body.setCircle(this.dragStartRadius);
-
-    // Bring to top
+    ball.body.setCircle(this.dragStartRadius); // Bring to top
     this.scene.children.bringToTop(ball);
-    if (ball.scoreText) {
-      this.scene.children.bringToTop(ball.scoreText);
+    if (CONFIG.debugCode && ball.textGroup) {
+      this.scene.children.bringToTop(ball.textGroup);
     }
 
     // Set ball properties
@@ -188,11 +186,15 @@ export class DragHandler {
 
     // Clamp position so the ball stays on screen
     newX = Math.max(radius, Math.min(width - radius, newX));
-    newY = Math.max(radius, Math.min(height - radius, newY));
-
-    // Update ball position to match pointer (considering offset)
+    newY = Math.max(radius, Math.min(height - radius, newY)); // Update ball position to match pointer (considering offset)
     ball.x = newX;
     ball.y = newY;
+
+    // Update debug text group position if it exists
+    if (CONFIG.debugCode && ball.textGroup) {
+      ball.textGroup.x = newX;
+      ball.textGroup.y = newY;
+    }
 
     // Check collisions with goal bars
     this.checkGoalBarCollision();
@@ -461,11 +463,11 @@ export class DragHandler {
     );
 
     if (timeSinceLastMerge >= this.mergeAnimationDelay) {
-      Logger.debug("Playing jiggle animation");
+      // Logger.debug("Playing jiggle animation");
       // this.playJiggleAnimation(ball);
       this.lastMergeTime = currentTime;
     } else {
-      Logger.debug("Skipping jiggle animation - too soon");
+      // Logger.debug("Skipping jiggle animation - too soon");
     }
 
     Logger.info(`Applying this radius: ${diameter}`);
@@ -653,10 +655,14 @@ export class DragHandler {
         }
       }
 
+      const totalScore = Math.round(finalRadius * (this.comboCount + 1));
+
       Logger.info(
         `??wBall released - Color: ${
           CONFIG.colorNames[ball.colorIndex]
-        }, Radius: ${finalRadius.toFixed(1)}`,
+        }, Radius: ${finalRadius.toFixed(1)}, ${totalScore} (${
+          this.comboCount
+        })combo score`,
       );
 
       // --- Add accumulated combo score to the scene's score ---
