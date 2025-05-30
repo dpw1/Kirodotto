@@ -33,7 +33,8 @@ export class DragHandler {
   }
 
   onPointerDown(pointer) {
-    if (this.isDragging) return;
+    // Check if the game is paused
+    if (this.scene.isPaused || this.isDragging) return;
 
     // Find the ball that was clicked on
     const balls = this.scene.balls.getChildren();
@@ -172,9 +173,21 @@ export class DragHandler {
     // Set ball properties
     ball.isDragging = true;
   }
-
   onPointerMove(pointer) {
     if (!this.isDragging || !this.draggedBall) return;
+
+    // Check if the game is paused - if so, cleanup and return
+    if (this.scene.isPaused) {
+      // When game is paused, we need to:
+      // 1. Reset the ball to its original position
+      if (this.draggedBall && this.startPosition) {
+        this.draggedBall.x = this.startPosition.x;
+        this.draggedBall.y = this.startPosition.y;
+      }
+      // 2. Clean up the drag state
+      this.resetDragState();
+      return;
+    }
 
     this.mergedThisFrame = false; // Reset merge flag at the beginning of frame
 
@@ -249,7 +262,6 @@ export class DragHandler {
   }
   handleCorrectGoal(ball, bar) {
     // Add score based on radius
-
     const score = this.score;
     // Add the accumulated score plus the current ball score
     this.scene.score += this.score + score;
@@ -265,6 +277,21 @@ export class DragHandler {
       ball.y,
       CONFIG.ballColors[ball.colorIndex],
     );
+
+    // If we have an active combo and didn't lose it, show a combo message
+    if (this.comboCount > 0 && this.mergeBallsOccurred) {
+      const comboLevel = Math.min(5, this.comboCount);
+      const messages =
+        CONFIG.comboGoalMessages[comboLevel] || CONFIG.comboGoalMessages["2"];
+      const randomMessage =
+        messages[Math.floor(Math.random() * messages.length)]; // Show the combo message in the center for goal completion
+      this.showComboText(
+        ball.x,
+        ball.y - 30,
+        `${this.comboCount + 1}x combo - ${randomMessage}`,
+        true, // isGoalCompletion = true
+      );
+    }
 
     // Remove the ball
     this.scene.removeBall(ball);
@@ -457,7 +484,7 @@ export class DragHandler {
       // Make sure score text stays on top
       this.scene.children.bringToTop(ball.scoreText);
     } // Only show combo notification, do not update score here
-    this.showComboText(ball.x, ball.y, `Combo ${this.comboCount + 1}x`); // Check if enough time has passed since last merge animation
+    this.showComboText(ball.x, ball.y, `Combo ${this.comboCount + 1}x`, false); // Show above ball for merges
     const currentTime = Date.now();
     const timeSinceLastMerge = currentTime - this.lastMergeTime;
 
@@ -571,31 +598,61 @@ export class DragHandler {
       },
     });
   }
+  showComboText(x, y, comboText, isGoalCompletion = false) {
+    if (isGoalCompletion) {
+      // Show in center for goal completion
+      const screenHeight = this.scene.cameras.main.height;
+      const screenWidth = this.scene.cameras.main.width;
+      const centerX = screenWidth / 2;
+      const centerY = screenHeight / 2;
 
-  showComboText(x, y, comboText) {
-    const text = this.scene.add
-      .text(x, y, comboText, {
-        fontSize: "28px",
-        fontFamily: CONFIG.fontFamily,
-        color: "#ffff00",
-        stroke: "#ff0000",
-        strokeThickness: 4,
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
+      const text = this.scene.add
+        .text(centerX, centerY, comboText, {
+          fontSize: "32px", // Larger for goal completion
+          fontFamily: CONFIG.fontFamily,
+          color: "#ffff00",
+          stroke: "#ff0000",
+          strokeThickness: 4,
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5);
 
-    // Add a more dramatic animation for combos
-    this.scene.tweens.add({
-      targets: text,
-      y: y - 120,
-      scale: { from: 0.5, to: 1.5 },
-      alpha: { from: 1, to: 0 },
-      duration: 1200,
-      ease: "Power2",
-      onComplete: () => {
-        text.destroy();
-      },
-    });
+      // Dramatic center animation for goal
+      this.scene.tweens.add({
+        targets: text,
+        scale: { from: 0.5, to: 2 },
+        alpha: { from: 1, to: 0 },
+        duration: 1000,
+        ease: "Power2",
+        onComplete: () => {
+          text.destroy();
+        },
+      });
+    } else {
+      // Show above ball for merges
+      const text = this.scene.add
+        .text(x, y, comboText, {
+          fontSize: "28px",
+          fontFamily: CONFIG.fontFamily,
+          color: "#ffff00",
+          stroke: "#ff0000",
+          strokeThickness: 4,
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5);
+
+      // Upward fade animation for merges
+      this.scene.tweens.add({
+        targets: text,
+        y: y - 80,
+        alpha: { from: 1, to: 0 },
+        duration: 800,
+        ease: "Power2",
+        onComplete: () => {
+          text.destroy();
+        },
+      });
+    }
   }
 
   showComboLostText(x, y) {
@@ -625,6 +682,17 @@ export class DragHandler {
   }
   onPointerUp() {
     if (!this.isDragging || !this.draggedBall) return;
+
+    // Check if the game is paused - if so, cleanup and return
+    if (this.scene.isPaused) {
+      // Reset ball to its original position
+      if (this.draggedBall && this.startPosition) {
+        this.draggedBall.x = this.startPosition.x;
+        this.draggedBall.y = this.startPosition.y;
+      }
+      this.resetDragState();
+      return;
+    }
 
     const ball = this.draggedBall;
 

@@ -47,4 +47,12 @@ export const CONFIG = {
   jiggleAnimationDuration: 500, // Duration of jiggle animation in ms
   jiggleAnimationScale: 1.15, // Scale factor for the jiggle animation
   mobileHitboxPadding: 12, // Extra pixels for ball hitbox on mobile
+
+  // Combo messages for goal completion
+  comboGoalMessages: {
+    2: ["Nice!", "Woah!", "Amazing!"],
+    3: ["Incredible!", "Awesome!", "Outstanding!"],
+    4: ["Insane!", "Unbelievable!", "Legendary!"],
+    5: ["Godlike!", "Unstoppable!", "Divine!"],
+  },
 };

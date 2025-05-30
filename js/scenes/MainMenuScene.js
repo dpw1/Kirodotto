@@ -319,16 +319,28 @@ export class MainMenuScene extends Phaser.Scene {
 
     return container;
   }
-
   showDebugOptions(parentPanel) {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
 
     // Create a panel for debug options
     const debugPanel = this.add.container(width / 2, height / 2);
+
+    // IMPORTANT: Ensure the debug panel is on top
+    debugPanel.setDepth(1000); // High depth value to ensure it's above everything
+
+    // Create a mask for scrolling
+    const mask = this.add.graphics().setScrollFactor(0);
+    mask.fillStyle(0xffffff);
+    mask.fillRect(width / 2 - 250, height / 2 - 200, 500, 400);
+
+    const contentContainer = this.add.container(0, 0);
+    debugPanel.add(contentContainer);
+
     const panelBg = this.add.graphics();
     panelBg.fillStyle(0x222244, 0.95);
     panelBg.fillRoundedRect(-250, -200, 500, 400, 20);
+    contentContainer.add(panelBg);
 
     const titleText = this.add
       .text(0, -170, "Debug Options", {
@@ -337,6 +349,9 @@ export class MainMenuScene extends Phaser.Scene {
         color: CONFIG.textColor,
       })
       .setOrigin(0.5);
+
+    // Add title to the content container instead of debugPanel
+    contentContainer.add(titleText);
 
     let y = -120;
     const controls = [];
@@ -359,7 +374,8 @@ export class MainMenuScene extends Phaser.Scene {
           localStorage.setItem(`debug_${key}`, v);
         });
 
-        debugPanel.add([label, switch_]);
+        // Add to contentContainer instead of debugPanel
+        contentContainer.add([label, switch_]);
         controls.push(label, switch_);
         y += 40;
       } else if (typeof value === "number") {
@@ -410,7 +426,8 @@ export class MainMenuScene extends Phaser.Scene {
           localStorage.setItem(`debug_${key}`, CONFIG[key]);
         });
 
-        debugPanel.add([label, valueText, minusBtn, plusBtn]);
+        // Add to contentContainer instead of debugPanel
+        contentContainer.add([label, valueText, minusBtn, plusBtn]);
         controls.push(label, valueText, minusBtn, plusBtn);
         y += 40;
       }
@@ -423,7 +440,48 @@ export class MainMenuScene extends Phaser.Scene {
       if (parentPanel) parentPanel.setVisible(true);
     });
     closeButton.setScale(0.7);
-    debugPanel.add([panelBg, titleText, closeButton]);
+
+    // Add close button to contentContainer
+    contentContainer.add(closeButton);
+
+    // Make the container interactive for scrolling
+    debugPanel.setInteractive(
+      new Phaser.Geom.Rectangle(-250, -200, 500, 400),
+      Phaser.Geom.Rectangle.Contains,
+    );
+
+    let isDragging = false;
+    let startY = 0;
+
+    debugPanel.on("pointerdown", (pointer) => {
+      isDragging = true;
+      startY = pointer.y - contentContainer.y;
+    });
+
+    debugPanel.on("pointermove", (pointer) => {
+      if (!isDragging) return;
+
+      let newY = pointer.y - startY;
+
+      // Calculate the content height
+      const contentHeight = Math.abs(closeButton.y - titleText.y) + 100;
+      const visibleHeight = 400; // Panel height
+
+      // Only allow scrolling if content is taller than panel
+      if (contentHeight > visibleHeight) {
+        // Limit scrolling
+        newY = Math.min(0, Math.max(visibleHeight - contentHeight, newY));
+        contentContainer.y = newY;
+      }
+    });
+
+    debugPanel.on("pointerup", () => {
+      isDragging = false;
+    });
+
+    debugPanel.on("pointerout", () => {
+      isDragging = false;
+    });
 
     // Hide parent panel while debug is open
     if (parentPanel) parentPanel.setVisible(false);
@@ -437,7 +495,6 @@ export class MainMenuScene extends Phaser.Scene {
       ease: "Back.easeOut",
     });
   }
-
   shutdown() {
     // Clean up event
     this.sys.events.off("update", this.updateBalls, this);
