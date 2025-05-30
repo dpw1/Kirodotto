@@ -1,7 +1,7 @@
 export const CONFIG = {
-  version: "1.16",
+  version: "1.17",
   minBallSize: 15, // Absolute minimum size for any ball
-  maxBallSize: 200, // Absolute maximum size for any ball. Will be divided by 2 when merging
+  maxBallSize: 220, // Absolute maximum size for any ball. Will be divided by 2 when merging
   ballSizeRange: [20, 40], // Range for initial ball size randomization [min, max]
   initialBallCount: 10,
   ballsPerLevel: 2,
@@ -26,10 +26,11 @@ export const CONFIG = {
 
   // Additional settings for visual polish
   fontFamily: "Arial, sans-serif",
-  textColor: "#ffffff",
-  goalBarWidth: 0.5, // 50% of the screen width for horizontal bars
-  goalBarHeight: 30, // Height of horizontal bars
-  goalBarVerticalWidth: 30, // Width of vertical bars
+  textColor: "#ffffff", // Goal bar dimensions
+  goalBarWidthPercent: 0.5, // 50% of the screen width for horizontal bars (top/bottom)
+  goalBarHeightPixels: 17, // Height of horizontal bars in pixels (top/bottom)
+  goalBarVerticalWidthPixels: 17, // Width of vertical bars in pixels (left/right)
+  goalBarVerticalHeightPercent: 0.2, // 60% of the screen height for vertical bars (left/right)
   transitionSpeed: 500, // Milliseconds for transitions
   particleCount: 30, // Number of particles for effects
 

@@ -13,8 +13,10 @@ export class DragHandler {
     this.mergeBallsOccurred = false; // Flag to indicate if a ball merge happened during drag
     this.clickCapturedRadius = null; // Stores the exact radius at the time of click
     this.dragOffset = { x: 0, y: 0 }; // Offset to maintain click position
-    this.originalRadius = null; // Store the original radius when drag starts    this.comboCount = 0; // Track combo count during a single drag
+    this.originalRadius = null; // Store the original radius when drag starts
+    this.comboCount = 0; // Track combo count during a single drag
     this.comboScore = 0; // Accumulate combo score during drag
+    this.score = 0; // Track score during ball interaction
     this.lastMergeTime = Date.now(); // Track last merge timestamp
     this.mergeAnimationDelay = 1000; // Delay in milliseconds between merge animations
 
@@ -62,7 +64,7 @@ export class DragHandler {
             1,
           )}`,
         );
-
+        this.score = Math.floor(this.clickCapturedRadius);
         // Calculate click offset from center
         this.dragOffset = {
           x: pointer.x - ball.x,
@@ -245,12 +247,13 @@ export class DragHandler {
       }
     }
   }
-
   handleCorrectGoal(ball, bar) {
     // Add score based on radius
-    const radius = ball.displayWidth / 2;
-    const score = Math.floor(radius);
-    this.scene.score += score;
+
+    const score = this.score;
+    // Add the accumulated score plus the current ball score
+    this.scene.score += this.score + score;
+    this.score = 0; // Reset the accumulated score
     this.scene.uiManager.updateScore(this.scene.score);
 
     // Show score text
@@ -458,10 +461,6 @@ export class DragHandler {
     const currentTime = Date.now();
     const timeSinceLastMerge = currentTime - this.lastMergeTime;
 
-    Logger.debug(
-      `Time since last merge: ${timeSinceLastMerge}ms, delay: ${this.mergeAnimationDelay}ms`,
-    );
-
     if (timeSinceLastMerge >= this.mergeAnimationDelay) {
       // Logger.debug("Playing jiggle animation");
       // this.playJiggleAnimation(ball);
@@ -470,7 +469,12 @@ export class DragHandler {
       // Logger.debug("Skipping jiggle animation - too soon");
     }
 
-    Logger.info(`Applying this radius: ${diameter}`);
+    const combo = this.comboCount + 1; // Increment combo count for display
+    const totalScore = Math.round(finalRadius * combo);
+
+    this.score = totalScore;
+
+    Logger.info(`Ball score: ${totalScore} (${combo}) combo`);
   }
 
   playJiggleAnimation(ball) {
@@ -655,14 +659,10 @@ export class DragHandler {
         }
       }
 
-      const totalScore = Math.round(finalRadius * (this.comboCount + 1));
-
       Logger.info(
         `??wBall released - Color: ${
           CONFIG.colorNames[ball.colorIndex]
-        }, Radius: ${finalRadius.toFixed(1)}, ${totalScore} (${
-          this.comboCount
-        })combo score`,
+        }, Radius: ${finalRadius.toFixed(1)}, (${this.comboCount})combo score`,
       );
 
       // --- Add accumulated combo score to the scene's score ---
@@ -699,7 +699,6 @@ export class DragHandler {
 
     this.draggedBall = null;
   }
-
   resetDragState() {
     this.isDragging = false;
     this.mergedThisFrame = false;
@@ -708,6 +707,7 @@ export class DragHandler {
     this.originalRadius = null;
     this.clickCapturedRadius = null;
     this.comboCount = 0; // Reset combo count
+    this.score = 0; // Reset accumulated score
 
     if (this.draggedBall) {
       this.draggedBall.isDragging = false;

@@ -85,9 +85,9 @@ export class GameScene extends Phaser.Scene {
     // Top bar
     const topBar = this.add.rectangle(
       width / 2,
-      CONFIG.goalBarHeight / 2,
-      width * CONFIG.goalBarWidth,
-      CONFIG.goalBarHeight,
+      CONFIG.goalBarHeightPixels / 2,
+      width * CONFIG.goalBarWidthPercent,
+      CONFIG.goalBarHeightPixels,
       Phaser.Display.Color.HexStringToColor(CONFIG.ballColors[barPositions.top])
         .color,
     );
@@ -98,9 +98,9 @@ export class GameScene extends Phaser.Scene {
     // Bottom bar
     const bottomBar = this.add.rectangle(
       width / 2,
-      height - CONFIG.goalBarHeight / 2,
-      width * CONFIG.goalBarWidth,
-      CONFIG.goalBarHeight,
+      height - CONFIG.goalBarHeightPixels / 2,
+      width * CONFIG.goalBarWidthPercent,
+      CONFIG.goalBarHeightPixels,
       Phaser.Display.Color.HexStringToColor(
         CONFIG.ballColors[barPositions.bottom],
       ).color,
@@ -111,10 +111,10 @@ export class GameScene extends Phaser.Scene {
 
     // Left bar
     const leftBar = this.add.rectangle(
-      CONFIG.goalBarVerticalWidth / 2,
+      CONFIG.goalBarVerticalWidthPixels / 2,
       height / 2,
-      CONFIG.goalBarVerticalWidth,
-      height * 0.6,
+      CONFIG.goalBarVerticalWidthPixels,
+      height * CONFIG.goalBarVerticalHeightPercent,
       Phaser.Display.Color.HexStringToColor(
         CONFIG.ballColors[barPositions.left],
       ).color,
@@ -125,10 +125,10 @@ export class GameScene extends Phaser.Scene {
 
     // Right bar
     const rightBar = this.add.rectangle(
-      width - CONFIG.goalBarVerticalWidth / 2,
+      width - CONFIG.goalBarVerticalWidthPixels / 2,
       height / 2,
-      CONFIG.goalBarVerticalWidth,
-      height * 0.6,
+      CONFIG.goalBarVerticalWidthPixels,
+      height * CONFIG.goalBarVerticalHeightPercent,
       Phaser.Display.Color.HexStringToColor(
         CONFIG.ballColors[barPositions.right],
       ).color,
