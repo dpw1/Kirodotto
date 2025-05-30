@@ -1,9 +1,9 @@
 export const CONFIG = {
-  version: "1.17",
+  version: "1.18",
   minBallSize: 15, // Absolute minimum size for any ball
   maxBallSize: 220, // Absolute maximum size for any ball. Will be divided by 2 when merging
   ballSizeRange: [20, 40], // Range for initial ball size randomization [min, max]
-  initialBallCount: 10,
+  initialBallCount: 8,
   ballsPerLevel: 2,
   lives: 3,
   showHitbox: false, // If true, outline balls with a purple 2px stroke
@@ -48,11 +48,54 @@ export const CONFIG = {
   jiggleAnimationScale: 1.15, // Scale factor for the jiggle animation
   mobileHitboxPadding: 12, // Extra pixels for ball hitbox on mobile
 
+  // Timer configuration
+  includeTimer: true, // If true, show a timer bar
+  timer: 15, // Game duration in seconds (0 = disabled)
+  timerBarHeight: 5, // Height of the timer progress bar in pixels
+  timerBarColorStart: 0x00ff00, // Start color (green)
+  timerBarColorEnd: 0xff0000, // End color (red)
+  timerBarY: 0, // Y position of the timer bar (below goal bar)
+
   // Combo messages for goal completion
   comboGoalMessages: {
-    2: ["Nice!", "Woah!", "Amazing!"],
-    3: ["Incredible!", "Awesome!", "Outstanding!"],
-    4: ["Insane!", "Unbelievable!", "Legendary!"],
-    5: ["Godlike!", "Unstoppable!", "Divine!"],
+    2: ["Nice!", "Woah!", "Great job!", "Well done!", "🔥 Smooth!"],
+    3: [
+      "Incredible!",
+      "Awesome!",
+      "Outstanding!",
+      "Keep it up!",
+      "💥 Heck Yeah!",
+    ],
+    4: ["Insane!", "Unbelievable!", "Legendary!", "Next level!", "⚡ Wild!"],
+    5: ["Godlike!", "Unstoppable!", "Divine!", "Elite combo!", "😮 Unreal!"],
+    6: ["Phenomenal!", "Ridiculous!", "Wicked!", "Slaying it!", "🤯 Crazy!"],
+    7: [
+      "Masterclass!",
+      "Insanely good!",
+      "Champion!",
+      "Too clean!",
+      "🔥 On fire!",
+    ],
+    8: [
+      "Dominating!",
+      "Beast mode!",
+      "Sharp as ever!",
+      "Freakish talent!",
+      "💪 Crushing it!",
+    ],
+    9: [
+      "Savage!",
+      "Breathtaking!",
+      "Brilliant!",
+      "Pure instinct!",
+      "🌟 Pro moves!",
+    ],
+    10: [
+      "Mythic!",
+      "Unreal streak!",
+      "Next dimension!",
+      "Legend!",
+      "🚀 Machine!",
+    ],
   },
 };

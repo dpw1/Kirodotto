@@ -33,6 +33,7 @@ export class DragHandler {
   }
 
   onPointerDown(pointer) {
+    if (this.disableDragging) return; // Prevent drag if disabled (e.g., game over)
     // Check if the game is paused
     if (this.scene.isPaused || this.isDragging) return;
 
@@ -288,7 +289,7 @@ export class DragHandler {
       this.showComboText(
         ball.x,
         ball.y - 30,
-        `${this.comboCount + 1}x combo - ${randomMessage}`,
+        `${this.comboCount + 1}x combo\n${randomMessage}`,
         true, // isGoalCompletion = true
       );
     }
@@ -608,14 +609,15 @@ export class DragHandler {
 
       const text = this.scene.add
         .text(centerX, centerY, comboText, {
-          fontSize: "32px", // Larger for goal completion
+          fontSize: "18px", // Larger for goal completion
           fontFamily: CONFIG.fontFamily,
           color: "#ffff00",
           stroke: "#ff0000",
           strokeThickness: 4,
           fontStyle: "bold",
+          align: "center", // <- this is like text-align
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5, 0.5);
 
       // Dramatic center animation for goal
       this.scene.tweens.add({
@@ -660,8 +662,8 @@ export class DragHandler {
       .text(x, y, "RIP Combo 😭", {
         fontSize: "28px",
         fontFamily: CONFIG.fontFamily,
-        color: "#ff0000",
-        stroke: "#ffffff",
+        color: "#ffffff",
+        stroke: "#000",
         strokeThickness: 1,
         fontStyle: "bold",
       })

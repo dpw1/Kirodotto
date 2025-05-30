@@ -66,7 +66,16 @@ export class GameScene extends Phaser.Scene {
     this.pauseMenu = null;
 
     if (CONFIG.includeTimer) {
-      this.createTimerBar();
+      this.timerBar = this.createTimerBar();
+      // Add debug timer text next to score
+      this.timerDebugText = this.add
+        .text(180, 10, `Timer: ${this.timeLeft}`, {
+          fontSize: "18px",
+          color: "#fff",
+          fontFamily: CONFIG.fontFamily,
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(1000);
     }
 
     Logger.info("Game scene created successfully");
@@ -399,6 +408,7 @@ export class GameScene extends Phaser.Scene {
       this.isDead = true;
       this.fillColor = 0x777777;
       this.velocity = { x: 0, y: 0 }; // Make it static
+      this.setDepth(-1000); // Set depth to -1000 to ensure it appears underneath other elements
       this.stopPulsating(); // Stop any pulsation
 
       if (this.scoreText) {
@@ -561,17 +571,66 @@ export class GameScene extends Phaser.Scene {
 
   createTimerBar() {
     const width = this.cameras.main.width;
-    const barHeight = 2;
+    // Remove old timer bar if it exists
+    if (this.timerBar) this.timerBar.destroy();
+    if (this.timerBarBg) this.timerBarBg.destroy();
+    // Create background bar full width
+    this.timerBarBg = this.add
+      .rectangle(0, CONFIG.timerBarY, width, CONFIG.timerBarHeight, 0x333333)
+      .setOrigin(0, 0.5);
+    // Create progress bar full width, starting from right edge
     this.timerBar = this.add
-      .rectangle(width, 0, width, barHeight, 0xffffff)
-      .setOrigin(1, 0);
-    this.timerBarStartWidth = width;
-    this.timerBarElapsed = 0;
-    this.timerBarActive = true;
+      .rectangle(
+        width,
+        CONFIG.timerBarY,
+        width,
+        CONFIG.timerBarHeight,
+        CONFIG.timerBarColorStart,
+      )
+      .setOrigin(1, 0.5);
+    // Initialize timer state
+    this.timeLeft = CONFIG.timer;
+    return this.timerBar;
+  }
+
+  updateTimer(delta) {
+    if (!this.gameActive || this.isPaused || !this.timerBar) return;
+    this.timeLeft = Math.max(0, this.timeLeft - delta / 1000);
+    const progress = this.timeLeft / CONFIG.timer;
+    const width = this.cameras.main.width;
+    this.timerBar.width = width * progress;
+    // Interpolate color from green to red
+    const startColor = Phaser.Display.Color.ValueToColor(
+      CONFIG.timerBarColorStart,
+    );
+    const endColor = Phaser.Display.Color.ValueToColor(CONFIG.timerBarColorEnd);
+    const lerpedColor = Phaser.Display.Color.Interpolate.ColorWithColor(
+      startColor,
+      endColor,
+      100,
+      100 - Math.floor(progress * 100),
+    );
+    const colorInt = Phaser.Display.Color.GetColor(
+      lerpedColor.r,
+      lerpedColor.g,
+      lerpedColor.b,
+    );
+    this.timerBar.fillColor = colorInt;
+    if (this.timerDebugText) {
+      this.timerDebugText.setText(`Timer: ${Math.ceil(this.timeLeft)}`);
+    }
+    if (this.timeLeft <= 0) {
+      this.gameOver();
+    }
   }
 
   update(time, delta) {
     if (!this.gameActive) return;
+
+    // Update timer if enabled
+    if (CONFIG.includeTimer && CONFIG.timer > 0) {
+      this.updateTimer(delta);
+    }
 
     // Move all balls according to their velocity
     const balls = this.balls.getChildren();
@@ -620,19 +679,7 @@ export class GameScene extends Phaser.Scene {
         ball.y = height - radius - bounceThreshold;
         ball.velocity.y *= -1;
       }
-    }
-
-    // Timer logic
-    if (CONFIG.includeTimer && this.timerBarActive) {
-      this.timerBarElapsed += delta / 1000;
-      const percent = Math.max(0, 1 - this.timerBarElapsed / CONFIG.timeLimit);
-      this.timerBar.width = width * percent;
-      this.timerBar.x = width;
-      if (this.timerBarElapsed >= CONFIG.timeLimit) {
-        this.timerBarActive = false;
-        this.gameOver();
-      }
-    }
+    } // Timer logic is now handled in updateTimer method
 
     // Check for collisions if a ball is being dragged
     if (
@@ -718,6 +765,7 @@ export class GameScene extends Phaser.Scene {
 
   gameOver() {
     this.gameActive = false;
+    this.isGameOver = true; // Add a flag to indicate game over
 
     Logger.info(`Game over - Final score: ${this.score}`);
 
@@ -729,6 +777,15 @@ export class GameScene extends Phaser.Scene {
     if (this.score > bestScore) {
       localStorage.setItem("bestScore", this.score);
       Logger.info(`New best score: ${this.score}`);
+    }
+
+    // Disable dragging
+    if (this.dragHandler) {
+      this.dragHandler.disableDragging = true;
+      // If a ball is being dragged, undrag it immediately
+      if (this.dragHandler.isDragging) {
+        this.dragHandler.resetDragState();
+      }
     }
   }
 
@@ -776,9 +833,14 @@ export class GameScene extends Phaser.Scene {
       this.nextLevel();
     });
   }
-
   nextLevel() {
     this.level++;
+
+    // Reset timer if enabled
+    if (CONFIG.timer > 0) {
+      this.timeLeft = CONFIG.timer;
+      this.createTimerBar();
+    }
 
     // Calculate ball count, ensuring at least 4 balls (one of each color)
     const extraBalls = (this.level - 1) * CONFIG.ballsPerLevel;
@@ -832,10 +894,12 @@ export class GameScene extends Phaser.Scene {
 
     Logger.info("Game paused");
 
-    // Stop pulsation animation on all balls when paused
+    // Stop all ball animations while paused
     const balls = this.balls.getChildren();
     for (let i = 0; i < balls.length; i++) {
-      balls[i].stopPulsating();
+      if (!balls[i].isDead && !balls[i].isDragging) {
+        balls[i].stopPulsating();
+      }
     }
   }
 
