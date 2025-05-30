@@ -16,7 +16,7 @@ export class DragHandler {
     this.originalRadius = null; // Store the original radius when drag starts    this.comboCount = 0; // Track combo count during a single drag
     this.comboScore = 0; // Accumulate combo score during drag
     this.lastMergeTime = Date.now(); // Track last merge timestamp
-    this.mergeAnimationDelay = 2000; // Delay in milliseconds between merge animations
+    this.mergeAnimationDelay = 1000; // Delay in milliseconds between merge animations
 
     Logger.info("DragHandler initialized");
 
@@ -121,6 +121,7 @@ export class DragHandler {
       }
     }
   }
+
   startDrag(ball, pointer) {
     // If already dragging, ignore
     if (this.isDragging) return;
@@ -128,9 +129,6 @@ export class DragHandler {
     this.isDragging = true;
     this.draggedBall = ball;
     this.startPosition = { x: ball.x, y: ball.y };
-
-    // Stop any ongoing jiggle animation
-    this.stopJiggleAnimation(ball);
 
     // Store the original radius of the ball before any changes
     this.originalRadius = ball.originalRadius;
@@ -411,6 +409,7 @@ export class DragHandler {
     this.dragStartRadius = finalRadius;
 
     ball.originalRadius = finalRadius;
+
     const newId = `merged_${window.MERGED_BALL_ID_COUNTER++}`;
     ball.mergedId = newId;
     window.MERGED_BALLS_DATA[newId] = finalRadius;
@@ -426,18 +425,10 @@ export class DragHandler {
       )}, mergedId=${newId}`,
     );
 
-    // Immediately update the physics body and hitbox
-    if (ball.body) {
-      ball.body.setCircle(finalRadius);
-      ball.body.offset.set(finalRadius, finalRadius);
-      // Set the display size to match the new physics size
-      ball.setDisplaySize(finalRadius * 2, finalRadius * 2);
-      // Update the .radius property for wall bounce logic
-      ball.radius = finalRadius;
-    }
+    const diameter = finalRadius * 2;
 
-    // Start the visual merge animation
-    this.handleMergeAnimation(ball, finalRadius);
+    ball.setDisplaySize(diameter, diameter);
+    ball.body.setCircle(finalRadius);
 
     const scoreValue = Math.floor(finalRadius);
 
@@ -464,189 +455,47 @@ export class DragHandler {
     this.showComboText(ball.x, ball.y, `Combo ${this.comboCount + 1}x`); // Check if enough time has passed since last merge animation
     const currentTime = Date.now();
     const timeSinceLastMerge = currentTime - this.lastMergeTime;
+
     Logger.debug(
       `Time since last merge: ${timeSinceLastMerge}ms, delay: ${this.mergeAnimationDelay}ms`,
     );
-    this.playJiggleAnimation(ball);
 
-    Logger.info(`Applying radius: ${finalRadius}`);
-    // Add debugger when combo count reaches 3
-    if (this.comboCount === 2) {
-      // 2 because this is the third merge (1st merge = count 0, 2nd = count 1, 3rd = count 2)
-      setTimeout(() => {
-        // debugger;
-      }, 100); // Wait 1 second before showing debug message
+    if (timeSinceLastMerge >= this.mergeAnimationDelay) {
+      Logger.debug("Playing jiggle animation");
+      // this.playJiggleAnimation(ball);
+      this.lastMergeTime = currentTime;
+    } else {
+      Logger.debug("Skipping jiggle animation - too soon");
     }
+
+    Logger.info(`Applying this radius: ${diameter}`);
   }
+
   playJiggleAnimation(ball) {
+    // Improved: queue a jiggle if one is already running
     if (ball.isJiggling) {
       ball.jiggleQueued = true;
       return;
     }
-
-    // Don't start animation if ball is being dragged or is merging
-    if (ball.isDragging || ball.isMerging) {
-      return;
-    }
-
     ball.isJiggling = true;
     ball.jiggleQueued = false;
-
-    // Store original values - use offset approach for position
-    const originalScaleX = ball.scaleX;
-    const originalScaleY = ball.scaleY;
-    const originalAngle = ball.angle;
-
-    // Use offset instead of absolute position to avoid conflicts
-    let yOffset = 0;
-
-    // Create a timeline for better control
-    const timeline = this.scene.tweens.timeline({
-      tweens: [
-        {
-          targets: ball,
-          scaleX: originalScaleX * 1.2,
-          scaleY: originalScaleY * 0.8,
-          angle: originalAngle - 3,
-          duration: 100,
-          ease: "Quad.easeOut",
-          onUpdate: () => {
-            // Only apply position offset if not being dragged
-            if (!ball.isDragging && !ball.isMerging) {
-              yOffset = ball.displayHeight * 0.1;
-              ball.y += yOffset - (ball.previousYOffset || 0);
-              ball.previousYOffset = yOffset;
-            }
-          },
-        },
-        {
-          targets: ball,
-          scaleX: originalScaleX * 0.8,
-          scaleY: originalScaleY * 1.2,
-          angle: originalAngle + 3,
-          duration: 100,
-          offset: 100,
-          ease: "Sine.easeInOut",
-          onUpdate: () => {
-            if (!ball.isDragging && !ball.isMerging) {
-              yOffset = -ball.displayHeight * 0.1;
-              ball.y += yOffset - (ball.previousYOffset || 0);
-              ball.previousYOffset = yOffset;
-            }
-          },
-        },
-        {
-          targets: ball,
-          scaleX: originalScaleX * 1.1,
-          scaleY: originalScaleY * 0.9,
-          angle: originalAngle - 2,
-          duration: 80,
-          offset: 200,
-          ease: "Quad.easeInOut",
-          onUpdate: () => {
-            if (!ball.isDragging && !ball.isMerging) {
-              yOffset = ball.displayHeight * 0.05;
-              ball.y += yOffset - (ball.previousYOffset || 0);
-              ball.previousYOffset = yOffset;
-            }
-          },
-        },
-        {
-          targets: ball,
-          scaleX: originalScaleX,
-          scaleY: originalScaleY,
-          angle: originalAngle,
-          duration: 120,
-          offset: 280,
-          ease: "Back.easeOut",
-          onUpdate: () => {
-            if (!ball.isDragging && !ball.isMerging) {
-              yOffset = 0;
-              ball.y += yOffset - (ball.previousYOffset || 0);
-              ball.previousYOffset = yOffset;
-            }
-          },
-          onComplete: () => {
-            // Clean up
-            ball.previousYOffset = 0;
-
-            if (ball.jiggleQueued && !ball.isDragging && !ball.isMerging) {
-              ball.jiggleQueued = false;
-              this.playJiggleAnimation(ball);
-            } else {
-              ball.isJiggling = false;
-            }
-          },
-        },
-      ],
-    });
-
-    // Store timeline reference for cleanup
-    ball.jiggleTimeline = timeline;
-  }
-
-  stopJiggleAnimation(ball) {
-    if (ball.jiggleTimeline) {
-      ball.jiggleTimeline.destroy();
-      ball.jiggleTimeline = null;
-    }
-
-    if (ball.isJiggling) {
-      // Reset to clean state without animation
-      ball.scaleX = ball.originalScale || ball.scaleX;
-      ball.scaleY = ball.originalScale || ball.scaleY;
-      ball.angle = 0;
-      ball.previousYOffset = 0;
-      ball.isJiggling = false;
-      ball.jiggleQueued = false;
-    }
-  }
-  handleMergeAnimation(ball, newRadius) {
-    // Stop any ongoing jiggle
-    this.stopJiggleAnimation(ball);
-
-    // Set merge flag to prevent new jiggles during merge
-    ball.isMerging = true;
-
-    // Get the base width from various possible sources
-    let baseWidth = 64; // Default fallback size
-    if (ball.frame?.width) {
-      baseWidth = ball.frame.width;
-    } else if (ball.width) {
-      baseWidth = ball.width;
-    } else if (ball.texture?.width) {
-      baseWidth = ball.texture.width;
-    }
-
-    // Calculate and validate the new scale
-    const newScale = (newRadius * 2) / baseWidth;
-    if (!Number.isFinite(newScale) || newScale <= 0) {
-      console.warn(
-        "Invalid scale calculated:",
-        newScale,
-        "Using fallback scale 1",
-      );
-      ball.originalScale = 1;
-      ball.isMerging = false;
-      return;
-    }
-
-    // Smooth transition to new size
+    const originalScale = ball.scale;
+    const gentleScale = originalScale * 1.05;
+    const gentleDuration = CONFIG.jiggleAnimationDuration / 3;
     this.scene.tweens.add({
       targets: ball,
-      scaleX: newScale,
-      scaleY: newScale,
-      duration: 200,
-      ease: "Back.easeOut",
+      scale: gentleScale,
+      duration: gentleDuration,
+      yoyo: true,
+      ease: "Sine.easeInOut",
       onComplete: () => {
-        ball.isMerging = false;
-        // Store the new scale as original for future jiggles
-        ball.originalScale = newScale;
-
-        // Update physics body with new size if it exists
-        if (ball.body) {
-          ball.body.setCircle(newRadius);
-          ball.body.offset.set(newRadius, newRadius);
+        ball.scale = originalScale;
+        if (ball.jiggleQueued) {
+          ball.jiggleQueued = false;
+          // Immediately play another jiggle
+          this.playJiggleAnimation(ball);
+        } else {
+          ball.isJiggling = false;
         }
       },
     });
@@ -757,16 +606,14 @@ export class DragHandler {
         `Using final radius: ${finalRadius.toFixed(1)}, mergeBallsOccurred: ${
           this.mergeBallsOccurred
         }`,
-      ); // Ensure the display size matches exactly
+      );
+
+      // Update physics body to match
+      ball.body.setCircle(finalRadius);
+
+      // Ensure the display size matches exactly
       const diameter = finalRadius * 2;
       ball.setDisplaySize(diameter, diameter);
-
-      // Update Arcade Physics body to match new size
-      if (ball.body) {
-        ball.body.setCircle(finalRadius);
-        // Offset the body to center it on the sprite
-        ball.body.offset.set(finalRadius, finalRadius);
-      }
 
       // Update score text to match new radius if debug enabled
       if (ball.scoreText && CONFIG.debugCode) {

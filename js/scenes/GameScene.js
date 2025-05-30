@@ -303,11 +303,14 @@ export class GameScene extends Phaser.Scene {
     const ball = this.add.circle(x, y, radius, color);
 
     // Add physics to the ball
-    this.physics.add.existing(ball);
+    this.physics.add.existing(ball, false); // false means not static
 
-    // Disable body by default (will be enabled during drag)
-    ball.body.enable = false;
+    // Set up physics body with proper settings
+    ball.body.enable = true;
     ball.body.setCircle(radius);
+    ball.body.setOffset(-radius, -radius);
+    ball.body.setBounce(1, 1);
+    ball.body.setCollideWorldBounds(false); // We handle world bounds manually
 
     // Custom properties
     ball.colorIndex = colorIndex;
@@ -552,7 +555,10 @@ export class GameScene extends Phaser.Scene {
       // Skip if the ball is being dragged or is dead
       if (ball.isDragging || ball.isDead) continue;
 
-      // Move the ball
+      // Get actual ball radius from physics body
+      const radius = ball.body.radius;
+
+      // Move the ball using physics velocity
       ball.x += (ball.velocity.x * delta) / 1000;
       ball.y += (ball.velocity.y * delta) / 1000;
 
@@ -562,18 +568,27 @@ export class GameScene extends Phaser.Scene {
         ball.scoreText.y = ball.y;
       }
 
-      // Check for edge bouncing
-      if (
-        (ball.x < ball.radius && ball.velocity.x < 0) ||
-        (ball.x > width - ball.radius && ball.velocity.x > 0)
+      // Check for edge bouncing using physics body
+      const bounceThreshold = 1; // Small threshold to prevent sticking
+      if (ball.x - radius <= bounceThreshold && ball.velocity.x < 0) {
+        ball.x = radius + bounceThreshold;
+        ball.velocity.x *= -1;
+      } else if (
+        ball.x + radius >= width - bounceThreshold &&
+        ball.velocity.x > 0
       ) {
+        ball.x = width - radius - bounceThreshold;
         ball.velocity.x *= -1;
       }
 
-      if (
-        (ball.y < ball.radius && ball.velocity.y < 0) ||
-        (ball.y > height - ball.radius && ball.velocity.y > 0)
+      if (ball.y - radius <= bounceThreshold && ball.velocity.y < 0) {
+        ball.y = radius + bounceThreshold;
+        ball.velocity.y *= -1;
+      } else if (
+        ball.y + radius >= height - bounceThreshold &&
+        ball.velocity.y > 0
       ) {
+        ball.y = height - radius - bounceThreshold;
         ball.velocity.y *= -1;
       }
     }
@@ -821,6 +836,15 @@ export class GameScene extends Phaser.Scene {
     // Update the ball's core properties first
     ball1.originalRadius = newSize / 2;
     ball1.setDisplaySize(newSize, newSize);
+    ball1.radius = newSize / 2; // Ensure wall bounce uses correct radius after merge
+
+    // Enable and update physics body
+    if (ball1.body) {
+      ball1.body.enable = true;
+      ball1.body.setCircle(newSize / 2);
+      // Center the physics body on the ball
+      ball1.body.setOffset(-newSize / 2, -newSize / 2);
+    }
 
     // Store both the finalSize and originalRadius to ensure consistency
     ball1.setData("finalSize", newSize);
@@ -832,6 +856,13 @@ export class GameScene extends Phaser.Scene {
     // Force update the size and radius again after animation
     ball1.originalRadius = ball1.getData("originalRadius");
     ball1.setDisplaySize(newSize, newSize);
+    ball1.radius = newSize / 2; // Ensure wall bounce uses correct radius after merge animation
+
+    // Update physics body again after animation
+    if (ball1.body) {
+      ball1.body.setCircle(newSize / 2);
+      ball1.body.setOffset(-newSize / 2, -newSize / 2);
+    }
 
     // Only resume pulsating after everything is complete and if not being dragged
     if (!ball1.isDragging) {
