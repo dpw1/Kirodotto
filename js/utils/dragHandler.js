@@ -598,6 +598,31 @@ export class DragHandler {
     });
   }
 
+  showComboLostText(x, y) {
+    const text = this.scene.add
+      .text(x, y, "RIP Combo 😭", {
+        fontSize: "28px",
+        fontFamily: CONFIG.fontFamily,
+        color: "#ff0000",
+        stroke: "#ffffff",
+        strokeThickness: 1,
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+
+    // Add a downward animation for combo loss
+    this.scene.tweens.add({
+      targets: text,
+      y: y + 80,
+      scale: { from: 1.2, to: 0.8 },
+      alpha: { from: 1, to: 0 },
+      duration: 700,
+      ease: "Power2",
+      onComplete: () => {
+        text.destroy();
+      },
+    });
+  }
   onPointerUp() {
     if (!this.isDragging || !this.draggedBall) return;
 
@@ -607,6 +632,11 @@ export class DragHandler {
     if (!ball.isDead) {
       // Use the current radius of the ball (which includes any merges)
       const finalRadius = ball.originalRadius;
+
+      // Check if we had started a combo but didn't complete it
+      if (this.comboCount > 0 && this.mergeBallsOccurred) {
+        this.showComboLostText(ball.x, ball.y);
+      }
 
       Logger.debug(
         `Using final radius: ${finalRadius.toFixed(1)}, mergeBallsOccurred: ${

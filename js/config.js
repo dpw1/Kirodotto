@@ -8,7 +8,7 @@ export const CONFIG = {
   lives: 3,
   showHitbox: false, // If true, outline balls with a purple 2px stroke
   debugCode: false, // If true, show ball scores above them
-  debugSameColorsOnly: true, // If true, only spawn balls of one color for debugging
+  debugSameColorsOnly: false, // If true, only spawn balls of one color for debugging
   phoneAspectRatio: 16 / 9, // 16:9 aspect ratio
   ballColors: ["#4ea8de", "#f9d342", "#ff5d5d", "#4dd599"], // Blue, Yellow, Red, Green
   colorNames: ["blue", "yellow", "red", "green"], // For easier reference
