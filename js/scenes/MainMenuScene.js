@@ -35,30 +35,49 @@ export class MainMenuScene extends Phaser.Scene {
     // Create floating background balls
     this.createBackgroundBalls();
 
-    // Best score
-    const bestScore = localStorage.getItem("bestScore") || 0;
+    // Best scores for both modes
+    const bestScoreArcade = localStorage.getItem("bestScoreArcade") || 0;
+    const bestScoreTimeAttack =
+      localStorage.getItem("bestScoreTimeAttack") || 0;
     this.add
-      .text(width / 2, height * 0.4, `Best Score: ${bestScore}`, {
-        fontFamily: CONFIG.fontFamily,
-        fontSize: "24px",
-        color: CONFIG.textColor,
-      })
+      .text(
+        width / 2,
+        height * 0.4,
+        `Best Arcade: ${bestScoreArcade}   |   Best Time Attack: ${bestScoreTimeAttack}`,
+        {
+          fontFamily: CONFIG.fontFamily,
+          fontSize: "24px",
+          color: CONFIG.textColor,
+        },
+      )
       .setOrigin(0.5);
 
-    // Start button
-    const startButton = this.createButton(
+    // Arcade button
+    const arcadeButton = this.createButton(
       width / 2,
       height * 0.55,
-      "Start Game",
+      "Arcade",
       () => {
-        this.scene.start("GameScene");
+        CONFIG.includeTimer = false;
+        this.scene.start("GameScene", { mode: "arcade" });
+      },
+    );
+
+    // Time Attack button
+    const timeAttackButton = this.createButton(
+      width / 2,
+      height * 0.65,
+      "Time Attack",
+      () => {
+        CONFIG.includeTimer = true;
+        this.scene.start("GameScene", { mode: "timeAttack" });
       },
     );
 
     // Options button
     const optionsButton = this.createButton(
       width / 2,
-      height * 0.65,
+      height * 0.75,
       "Options",
       () => {
         this.showOptions();

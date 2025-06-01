@@ -765,24 +765,33 @@ export class GameScene extends Phaser.Scene {
 
   gameOver() {
     this.gameActive = false;
-    this.isGameOver = true; // Add a flag to indicate game over
-
+    this.isGameOver = true;
     Logger.info(`Game over - Final score: ${this.score}`);
-
-    // Show game over UI
-    this.uiManager.showGameOver(this.score);
-
-    // Save best score if needed
-    const bestScore = localStorage.getItem("bestScore") || 0;
-    if (this.score > bestScore) {
-      localStorage.setItem("bestScore", this.score);
-      Logger.info(`New best score: ${this.score}`);
+    // Determine mode
+    let mode = "arcade";
+    if (
+      this.scene &&
+      this.scene.settings &&
+      this.scene.settings.data &&
+      this.scene.settings.data.mode
+    ) {
+      mode = this.scene.settings.data.mode;
+    } else if (CONFIG.includeTimer) {
+      mode = "timeAttack";
     }
-
+    // Save best score for the correct mode
+    const bestScoreKey =
+      mode === "timeAttack" ? "bestScoreTimeAttack" : "bestScoreArcade";
+    const bestScore = localStorage.getItem(bestScoreKey) || 0;
+    if (this.score > bestScore) {
+      localStorage.setItem(bestScoreKey, this.score);
+      Logger.info(`New best score for ${mode}: ${this.score}`);
+    }
+    // Show game over UI (pass mode for display)
+    this.uiManager.showGameOver(this.score, mode);
     // Disable dragging
     if (this.dragHandler) {
       this.dragHandler.disableDragging = true;
-      // If a ball is being dragged, undrag it immediately
       if (this.dragHandler.isDragging) {
         this.dragHandler.resetDragState();
       }
